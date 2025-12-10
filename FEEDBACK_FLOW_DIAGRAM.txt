@@ -1,0 +1,228 @@
+# Feedback Response Notification - Visual Flow Diagram
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                        FEEDBACK RESPONSE NOTIFICATION FLOW                     │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 1: USER SUBMITS FEEDBACK                                             │
+│  ┌────────────────────┐                                                    │
+│  │  Mobile App        │                                                    │
+│  │  ┌──────────────┐  │                                                    │
+│  │  │ Profile >    │  │                                                    │
+│  │  │ User Feedback│──┼────► Feedback saved to database                   │
+│  │  └──────────────┘  │       (feedback table)                            │
+│  └────────────────────┘                                                    │
+│           │                                                                 │
+│           ▼                                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 2: ADMIN RESPONDS                                                    │
+│  ┌────────────────────┐                                                    │
+│  │  CodeIgniter Panel │                                                    │
+│  │  ┌──────────────┐  │                                                    │
+│  │  │ View Feedback│  │                                                    │
+│  │  │ Add Response │──┼────► Response inserted to database                │
+│  │  └──────────────┘  │       (feedback_responses table)                  │
+│  └────────────────────┘                                                    │
+│           │                                                                 │
+│           ▼                                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 3: DATABASE TRIGGER FIRES AUTOMATICALLY                              │
+│  ┌────────────────────────────────────────────────────────────┐            │
+│  │  TRIGGER: create_feedback_response_notification            │            │
+│  │                                                             │            │
+│  │  1. Detect new row in feedback_responses                   │            │
+│  │  2. Get user_email from parent feedback                    │            │
+│  │  3. Determine feedback type (bug/suggestion/rating)        │            │
+│  │  4. Create customized notification message                 │            │
+│  │  5. Insert into notifications table                        │            │
+│  │     • type: "feedbackResponse"                             │            │
+│  │     • data: {feedbackId, responseId, adminEmail}          │            │
+│  │     • user_email: user@cspc.edu.ph                        │            │
+│  └────────────────────────────────────────────────────────────┘            │
+│           │                                                                 │
+│           ▼                                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 4: USER SEES NOTIFICATION                                            │
+│  ┌────────────────────┐                                                    │
+│  │  Mobile App        │                                                    │
+│  │  ┌──────────────┐  │   ╔════════════════════════════════╗              │
+│  │  │ 🔔 (1)       │  │   ║  💬 Response to Your Feedback ║              │
+│  │  │              │  │   ║  The admin has responded...    ║              │
+│  │  │ Home Screen  │  │   ║  Just now                      ║              │
+│  │  └──────────────┘  │   ╚════════════════════════════════╝              │
+│  └────────────────────┘   Green chat icon indicates feedback response     │
+│           │                                                                 │
+│           ▼                                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 5: USER TAPS NOTIFICATION                                            │
+│  ┌────────────────────┐                                                    │
+│  │  NotificationsScreen.js                                                 │
+│  │                                                                          │
+│  │  handleNotificationPress(notification)                                  │
+│  │    ├── Mark as read                                                     │
+│  │    └── navigateToNotificationContent(notification)                      │
+│  │         ├── Check: notification.type === 'feedbackResponse'            │
+│  │         ├── Extract: feedbackId from notification.data                  │
+│  │         └── Navigate: UserFeedback screen with highlightFeedbackId     │
+│  └──────────────────────────────────────────────────────────────────────── │
+│           │                                                                 │
+│           ▼                                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  STEP 6: FEEDBACK SCREEN OPENS WITH HIGHLIGHT                              │
+│  ┌────────────────────────────────────────────────────────────┐            │
+│  │  UserFeedbackScreen.js                                     │            │
+│  │                                                             │            │
+│  │  ┌─────────────────────────────────────────────────────┐  │            │
+│  │  │ 📝 We Value Your Feedback                           │  │            │
+│  │  │ [Submit new feedback form...]                       │  │            │
+│  │  └─────────────────────────────────────────────────────┘  │            │
+│  │                                                             │            │
+│  │  ┌─────────────────────────────────────────────────────┐  │            │
+│  │  │ 📋 Your Previous Feedback                           │  │            │
+│  │  │                                                      │  │            │
+│  │  │ ╔══════════════════════════════════════════════╗    │  │            │
+│  │  │ ║ 💡 Suggestion            Oct 1, 2025       ║    │  │            │
+│  │  │ ║                                             ║    │  │            │
+│  │  │ ║ My feedback text here...                   ║    │  │  ← HIGHLIGHTED
+│  │  │ ║                                             ║    │  │  (Green border,
+│  │  │ ║ 💬 Admin Responses:                         ║    │  │   light green bg)
+│  │  │ ║    Admin: Thank you for your feedback!     ║    │  │
+│  │  │ ║    We will look into this.                 ║    │  │
+│  │  │ ║                                             ║    │  │
+│  │  │ ║ Status: ● Reviewed                          ║    │  │
+│  │  │ ╚══════════════════════════════════════════════╝    │  │
+│  │  │                                                      │  │
+│  │  │ [Other feedback items...]                           │  │
+│  │  └─────────────────────────────────────────────────────┘  │
+│  └────────────────────────────────────────────────────────────┘            │
+│                                                                             │
+│  After 3 seconds: Highlight fades (border/background return to normal)     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              VISUAL ELEMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+NOTIFICATION ICON COLORS:
+┌──────────────────────────────────────────────────────────────────────────┐
+│  💬  Feedback Response    →  Green (#27ae60)                            │
+│  📋  Claim Request         →  Purple (#9b59b6)                           │
+│  🔀  Match                 →  Blue (#3498db)                             │
+│  ✋  Claim                 →  Orange (#e67e22)                            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+HIGHLIGHT STYLING:
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Border:      2px solid #27ae60 (green)                                 │
+│  Background:  #e8f5e9 (light green)                                     │
+│  Shadow:      0px 2px 4px rgba(39, 174, 96, 0.2)                        │
+│  Duration:    3000ms (3 seconds)                                        │
+│  Animation:   Instant on → Fade out after 3s                            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+NOTIFICATION MESSAGES BY TYPE:
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Suggestion:  "The admin has responded to your suggestion..."          │
+│  Bug Report:  "The admin has responded to your bug report..."          │
+│  Rating:      "The admin has responded to your rating and feedback..." │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                          DATABASE STRUCTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+feedback table                feedback_responses table         notifications table
+┌──────────────┐             ┌──────────────────┐             ┌─────────────────┐
+│ id           │◄────────────┤ feedback_id      │             │ id              │
+│ user_email   │             │ id               │             │ type            │
+│ type         │             │ admin_email      │             │ title           │
+│ text         │             │ admin_name       │             │ message         │
+│ status       │             │ response_text    │             │ data (JSON)     │
+│ created_at   │             │ created_at       │             │ read            │
+└──────────────┘             └──────────────────┘             │ created_at      │
+                                     │                         │ user_email      │
+                                     │                         └─────────────────┘
+                                     │                                  ▲
+                                     └──────────────────────────────────┘
+                                         TRIGGER creates notification
+                                         when response inserted
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                          CODE FLOW DIAGRAM
+═══════════════════════════════════════════════════════════════════════════════
+
+App Navigation:
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│  NotificationsScreen.js                                                    │
+│         │                                                                  │
+│         │ User taps notification                                           │
+│         ▼                                                                  │
+│  handleNotificationPress(notification)                                     │
+│         │                                                                  │
+│         ├─► markAsRead(notification.id)                                    │
+│         │                                                                  │
+│         └─► navigateToNotificationContent(notification)                    │
+│                     │                                                      │
+│                     ├─ if type === 'feedbackResponse'                      │
+│                     │                                                      │
+│                     └─► navigation.navigate('UserFeedback', {             │
+│                           highlightFeedbackId: data.feedbackId            │
+│                         })                                                 │
+│                                  │                                         │
+│         ┌────────────────────────┘                                         │
+│         ▼                                                                  │
+│  UserFeedbackScreen.js                                                     │
+│         │                                                                  │
+│         │ Receives route.params.highlightFeedbackId                        │
+│         ▼                                                                  │
+│  useEffect(() => {                                                         │
+│    setHighlightFeedbackId(params.highlightFeedbackId)                     │
+│    setTimeout(() => setHighlightFeedbackId(null), 3000)                   │
+│  })                                                                        │
+│         │                                                                  │
+│         ▼                                                                  │
+│  renderPastFeedback()                                                      │
+│         │                                                                  │
+│         └─► Apply styles.highlightedFeedback                              │
+│             if feedback.id === highlightFeedbackId                         │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                          SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Complete end-to-end flow working
+✅ Automatic notification creation via database trigger
+✅ Seamless navigation from notification to feedback
+✅ Visual highlighting for 3 seconds
+✅ User-friendly and intuitive experience
+✅ No manual intervention required
+✅ Works for all feedback types (suggestion, bug, rating)
+✅ Tested and verified
+
+═══════════════════════════════════════════════════════════════════════════════
+```

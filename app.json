@@ -1,29 +1,73 @@
 {
   "expo": {
-    "name": "lost-and-found",
+    "name": "CSPC Lost & Found",
     "slug": "lost-and-found",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "lostandfound",
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#e74c3c",
+          "mode": "production"
+        }
+      ],
+      "expo-image-picker",
+      "expo-asset",
+      "expo-font"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.slug990.lostandfound",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#FFFFFF"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.slug990.lostandfound",
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBH2IW8BhGrEOBAR2Y7kjk_A6RP7TfTTxE"
+        }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bbf80429-491c-40aa-b18c-7e176cd0a85e"
+      },
+      "geminiApiKey": "AIzaSyB2oSL32Krup7YUX_R4dVTe1PCB8BG-Or4"
+    },
+    "owner": "seancapistrano12"
   }
 }
