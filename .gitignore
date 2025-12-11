@@ -36,5 +36,5 @@ Thumbs.db
 # Sensitive files
 *.p12
 *.mobileprovision
-google-services.json
+# google-services.json
 GoogleService-Info.plist
