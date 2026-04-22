@@ -26,7 +26,7 @@ import auth from '@react-native-firebase/auth';
 
 // Firebase configuration - this ensures Firebase is properly configured
 const firebaseConfig = {
-  apiKey: "AIzaSyDItNJdP68APD8wBQmlxO0J-tXo5_GmgJU",
+  apiKey: "",
   authDomain: "lost-and-found-31669.firebaseapp.com",
   projectId: "lost-and-found-31669",
   storageBucket: "lost-and-found-31669.firebasestorage.app",
