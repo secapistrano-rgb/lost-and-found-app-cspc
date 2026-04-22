@@ -50,7 +50,7 @@
       "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyBH2IW8BhGrEOBAR2Y7kjk_A6RP7TfTTxE"
+          "apiKey": ""
         }
       },
       "permissions": [
@@ -66,7 +66,7 @@
       "eas": {
         "projectId": "bbf80429-491c-40aa-b18c-7e176cd0a85e"
       },
-      "geminiApiKey": "AIzaSyB2oSL32Krup7YUX_R4dVTe1PCB8BG-Or4"
+      "geminiApiKey": ""
     },
     "owner": "seancapistrano12"
   }
