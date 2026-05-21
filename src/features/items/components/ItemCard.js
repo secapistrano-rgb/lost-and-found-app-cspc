@@ -29,7 +29,7 @@ const ItemCard = ({ item, onPress, type = 'lost' }) => {
 
   // Calculate time remaining for found items
   useEffect(() => {
-    if (type === 'found' && item.turnin_deadline && item.status === 'pending_turnin') {
+    if (type === 'found' && item.turnin_deadline && item.status === 'Pending Turning-in') {
       const updateTimer = () => {
         const now = new Date().getTime();
         const deadline = new Date(item.turnin_deadline).getTime();
@@ -55,7 +55,7 @@ const ItemCard = ({ item, onPress, type = 'lost' }) => {
   
   // Check if the item has been marked as found
   const isFound = item.status === 'found';
-  const needsTurnIn = type === 'found' && item.status === 'pending_turnin';
+  const needsTurnIn = type === 'found' && item.status === 'Pending Turning-in';
 
   return (
     <TouchableOpacity 

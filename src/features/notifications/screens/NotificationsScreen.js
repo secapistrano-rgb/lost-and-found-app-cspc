@@ -90,6 +90,10 @@ const NotificationsScreen = ({ navigation }) => {
       // Navigate to the item details
       const itemId = notification.data.itemId;
       navigation.navigate('ItemDetails', { itemId, itemType: 'found' });
+    } else if (notification.type === 'warning' && notification.data?.itemId) {
+      // Navigate to item details for fake report warning
+      const itemId = notification.data.itemId;
+      navigation.navigate('ItemDetails', { itemId });
     } else if (notification.type === 'feedbackResponse' && notification.data?.feedbackId) {
       // Navigate to user feedback screen to view the response
       navigation.navigate('UserFeedback', { highlightFeedbackId: notification.data.feedbackId });
@@ -122,6 +126,8 @@ const NotificationsScreen = ({ navigation }) => {
           <Ionicons name="clipboard" size={24} color="#9b59b6" />
         ) : item.type === 'claim' ? (
           <Ionicons name="hand-left" size={24} color="#e67e22" />
+        ) : item.type === 'warning' ? (
+          <Ionicons name="alert-circle" size={24} color="#e74c3c" />
         ) : item.type === 'feedbackResponse' ? (
           <Ionicons name="chatbubble-ellipses" size={24} color="#27ae60" />
         ) : item.type === 'supportStatus' ? (

@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { deleteItem, getItemById, getItems } from '../../../config/apiConfig';
+import { deleteItem, getItemById, getItems, getApiUrl } from '../../../config/apiConfig';
 import { useFocusEffect } from '@react-navigation/native';
 import MapViewComponent from '../../../shared/utils/MapViewComponent';
 import ProfessionalAlert from '../../../components/common/modals/ProfessionalAlert';
@@ -290,6 +290,57 @@ const ItemDetailsScreen = ({ route, navigation }) => {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Report as Fake handler
+  const handleReportAsFake = async () => {
+    showConfirm(
+      'Report as Fake',
+      'Are you sure you want to report this item as a fake report? This action will flag the item and notify administrators.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Report', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!currentUser || !currentUser.email) {
+                showError('Error', 'User authentication required.');
+                return;
+              }
+
+              const response = await fetch(getApiUrl(`/api/items/${item.id}/fake-report`), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  reportedBy: currentUser.email
+                })
+              });
+
+              const data = await response.json();
+
+              if (response.ok) {
+                showSuccess(
+                  'Reported Successfully',
+                  'Thank you for reporting. The item has been flagged for review by administrators.',
+                  [{ 
+                    text: 'OK',
+                    onPress: () => navigation.goBack()
+                  }]
+                );
+              } else {
+                throw new Error(data.error || 'Failed to report item');
+              }
+            } catch (error) {
+              console.error('Error reporting item as fake:', error);
+              showError('Error', error.message || 'Failed to report item. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Show loading state when fetching item data from deep link
@@ -623,11 +674,27 @@ const ItemDetailsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.notYourItemContainer}>
-          <Text style={styles.notYourItemText}>
-            <Ionicons name="information-circle" size={16} /> {fromClaimRequest ? 'Edit options are not available in claim request view' : 'Only the person who reported this item can edit it'}
-          </Text>
-        </View>
+        <>
+          <View style={styles.notYourItemContainer}>
+            <Text style={styles.notYourItemText}>
+              <Ionicons name="information-circle" size={16} /> {fromClaimRequest ? 'Edit options are not available in claim request view' : 'Only the person who reported this item can edit it'}
+            </Text>
+          </View>
+          
+          {/* Report as Fake Button - Only show if not the owner */}
+          {!fromClaimRequest && item && item.status !== 'Fake Report' && (
+            <View style={styles.reportFakeContainer}>
+              <TouchableOpacity 
+                style={styles.reportFakeButton}
+                onPress={handleReportAsFake}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flag-outline" size={18} color="#dc3545" style={{marginRight: 8}} />
+                <Text style={styles.reportFakeButtonText}>Report as Fake</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
       )}
 
       <ProfessionalAlert
@@ -732,6 +799,26 @@ const createStyles = (insets) => StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  reportFakeContainer: {
+    marginHorizontal: 16,
+    marginBottom: Math.max(16, insets?.bottom || 0),
+    marginTop: 8,
+  },
+  reportFakeButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#dc3545',
+    padding: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportFakeButtonText: {
+    color: '#dc3545',
+    fontSize: 14,
+    fontWeight: '600',
   },
   container: {
     flex: 1,

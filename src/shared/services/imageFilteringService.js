@@ -48,37 +48,31 @@ const prepareImageForFiltering = async (imageUrl) => {
       };
     }
     
-    // For HTTP URLs, fetch and convert
+    // For HTTP URLs, download and convert to base64 using expo-file-system
     if (imageUrl.startsWith('http')) {
       console.log('Processing HTTP URL...');
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status}`);
+      const extension = imageUrl.split('?')[0].split('.').pop().toLowerCase();
+      const mimeTypeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+      const mimeType = mimeTypeMap[extension] || 'image/jpeg';
+      const localUri = FileSystem.cacheDirectory + `filter_${Date.now()}.${extension || 'jpg'}`;
+
+      console.log('Downloading image to:', localUri);
+      const downloadResult = await FileSystem.downloadAsync(imageUrl, localUri);
+      if (downloadResult.status !== 200) {
+        throw new Error(`Failed to download image: ${downloadResult.status}`);
       }
-      
-      const blob = await response.blob();
-      const mimeType = blob.type || 'image/jpeg';
-      console.log('HTTP image MIME type:', mimeType);
-      console.log('HTTP image size:', blob.size);
-      
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64Data = reader.result.split(',')[1];
-          console.log('Base64 data length:', base64Data ? base64Data.length : 0);
-          resolve({
-            "inlineData": {
-              "mimeType": mimeType,
-              "data": base64Data
-            }
-          });
-        };
-        reader.onerror = (error) => {
-          console.error('FileReader error:', error);
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
+
+      const base64Data = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+      console.log('Base64 data length:', base64Data ? base64Data.length : 0);
+
+      await FileSystem.deleteAsync(localUri, { idempotent: true });
+
+      return {
+        "inlineData": {
+          "mimeType": mimeType,
+          "data": base64Data
+        }
+      };
     }
     
     // Reject file URIs - only accept HTTP URLs and data URIs

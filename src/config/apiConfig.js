@@ -6,7 +6,7 @@
 
 export const API_CONFIG = {
   // Base URL for the API server
-  BASE_URL: 'https://api.lostfound.systems', // Use localhost for local development
+  BASE_URL: 'http://192.168.1.17:3000', // Local development server
   
   // API Endpoints
   ENDPOINTS: {

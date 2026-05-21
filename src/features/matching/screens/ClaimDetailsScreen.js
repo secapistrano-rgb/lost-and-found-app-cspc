@@ -271,19 +271,52 @@ const ClaimDetailsScreen = ({ navigation, route }) => {
             <Ionicons name="time-outline" size={20} color="#007bff" />
             <Text style={styles.sectionTitle}>Timeline</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Submitted:</Text>
-            <Text style={styles.value}>{formatDate(claim.createdAt)}</Text>
-          </View>
-          {claim.updatedAt && claim.updatedBy && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Last Updated:</Text>
-              <Text style={styles.value}>
-                {formatDate(claim.updatedAt)} by {claim.updatedBy.name || claim.updatedBy.email}
-                {claim.updatedBy.isAdmin ? ' (Admin)' : ''}
-              </Text>
+          
+          {/* Timeline Items */}
+          <View style={styles.timelineContainer}>
+            {/* Submitted */}
+            <View style={styles.timelineItem}>
+              <View style={styles.timelineDot}>
+                <Ionicons name="create-outline" size={16} color="#007bff" />
+              </View>
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineLabel}>Submitted</Text>
+                <Text style={styles.timelineDate}>{formatDate(claim.createdAt)}</Text>
+              </View>
             </View>
-          )}
+            
+            {/* Claimed (only for resolved status) */}
+            {claim.status === 'resolved' && claim.updatedAt && (
+              <View style={styles.timelineItem}>
+                <View style={[styles.timelineDot, styles.timelineDotResolved]}>
+                  <Ionicons name="checkmark-done" size={16} color="#17a2b8" />
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>Claimed</Text>
+                  <Text style={styles.timelineDate}>{formatDate(claim.updatedAt)}</Text>
+                </View>
+              </View>
+            )}
+            
+            {/* Last Updated */}
+            {claim.updatedAt && claim.updatedBy && (
+              <View style={[styles.timelineItem, styles.timelineItemLast]}>
+                <View style={styles.timelineDot}>
+                  <Ionicons name="sync-outline" size={16} color="#6c757d" />
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineLabel}>Last Updated</Text>
+                  <Text style={styles.timelineDate}>
+                    {formatDate(claim.updatedAt)}
+                  </Text>
+                  <Text style={styles.timelineBy}>
+                    by {claim.updatedBy.name || claim.updatedBy.email}
+                    {claim.updatedBy.isAdmin ? ' (Admin)' : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Additional Information */}
@@ -947,6 +980,58 @@ const createStyles = (insets) => StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     lineHeight: 20,
+  },
+  // Timeline styles
+  timelineContainer: {
+    marginTop: 12,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  timelineItemLast: {
+    marginBottom: 0,
+  },
+  timelineDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e3f2fd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#007bff',
+  },
+  timelineDotResolved: {
+    backgroundColor: '#d1ecf1',
+    borderColor: '#17a2b8',
+  },
+  timelineContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  timelineLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  timelineDate: {
+    fontSize: 15,
+    color: '#2c3e50',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  timelineBy: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 

@@ -79,9 +79,9 @@ const ImagePickerComponent = ({ onImageSelected, onCategoriesDetected, onObjects
       if (!contentAnalysis.isAppropriate) {
         console.log('Image rejected as inappropriate:', contentAnalysis.reason);
         Alert.alert(
-          'Inappropriate Content Detected',
-          `${contentAnalysis.reason}\n\nPlease select a different image that shows the item clearly or provides valid proof of ownership.`,
-          [{ text: 'OK', style: 'default' }]
+          '⚠️ Image Cannot Be Used',
+          `${contentAnalysis.reason}\n\n📸 What to do next:\n\n• Take a new photo showing only the item\n• Ensure good lighting and clear focus\n• Avoid including people, faces, or sensitive information\n• Use appropriate images suitable for campus community\n\nPlease try again with a different image.`,
+          [{ text: 'Got It', style: 'default' }]
         );
         // NOTE: The image is already uploaded. We might want to delete it here.
         // For now, we'll leave it, but this is a potential improvement.

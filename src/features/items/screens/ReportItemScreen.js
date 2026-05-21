@@ -708,10 +708,10 @@ const ReportItemScreen = ({ navigation, route }) => {
       }
 
       // Create item object with reporter information
-      // For found items, set status to pending_turnin with 12-hour deadline
+      // For found items, set status to Pending Turning-in with 12-hour deadline
       const now = new Date();
       const turnInDeadlineDate = new Date(now.getTime() + (12 * 60 * 60 * 1000)); // 12 hours from now
-      const itemStatus = type === 'found' ? 'pending_turnin' : 'active';
+      const itemStatus = type === 'found' ? 'Pending Turning-in' : 'active';
       
       const item = {
         id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

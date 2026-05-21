@@ -325,9 +325,9 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Filter out resolved, claimed, returned items AND pending_turnin items (found items waiting to be turned in)
+      // Filter out resolved, claimed, returned items AND Pending Turning-in items (found items waiting to be turned in)
       const activeItems = allItems.filter(item => 
-        !['resolved', 'claimed', 'returned', 'pending_turnin'].includes(item.status)
+        !['resolved', 'claimed', 'returned', 'Pending Turning-in'].includes(item.status)
       );
       
       // Sort by creation date (newest first) and show immediately with default match count

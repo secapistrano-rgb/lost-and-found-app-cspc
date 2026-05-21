@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { runAutoMatching, runMatchingForItems } = require('./matchingService');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const bcrypt = require('bcryptjs');
 // Import notification service to ensure table creation
 const { ensureNotificationsTable } = require('./notificationService');
@@ -18,9 +18,21 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors());
 
+// Global request logging middleware
+app.use((req, res, next) => {
+    if (req.path.includes('fake-report')) {
+        console.log('=== INCOMING REQUEST ===');
+        console.log('Method:', req.method);
+        console.log('Path:', req.path);
+        console.log('Body:', JSON.stringify(req.body));
+        console.log('Content-Type:', req.get('Content-Type'));
+    }
+    next();
+});
+
 // CONFIGURATION - Set these based on your environment
-const UPLOADS_DIR = '/var/www/api/uploads'; // Absolute path to uploads
-const BASE_URL = 'https://api.lostfound.systems'; // Your production domain
+const UPLOADS_DIR = process.env.UPLOADS_DIR || './uploads'; // Local: ./uploads | Production: /var/www/api/uploads
+const BASE_URL = process.env.BASE_URL || 'http://192.168.1.17:3000'; // Local: http://192.168.1.17:3000 | Production: https://api.lostfound.systems
 if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
     console.log(`Created uploads directory at: ${UPLOADS_DIR}`);
@@ -53,7 +65,7 @@ const upload = multer({
         const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
-        
+
         if (mimetype && extname) {
             return cb(null, true);
         } else {
@@ -76,7 +88,7 @@ const fileUpload = multer({
         // Allow common file types for support attachments
         const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|txt|xls|xlsx|csv|zip|rar/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        
+
         if (extname) {
             return cb(null, true);
         } else {
@@ -87,9 +99,9 @@ const fileUpload = multer({
 
 // Create a connection pool to the database
 const db = mysql.createPool({
-    host: '127.0.0.1', 
-    user: 'root',     
-    password: 'Lostfound@2004',      
+    host: '127.0.0.1',
+    user: 'root',
+    password: 'Lostfound@2004',
     database: 'lost_and_found',
     connectionLimit: 5,
     connectTimeout: 10000,
@@ -102,9 +114,9 @@ db.on('connection', function (connection) {
     console.log('New connection established as id ' + connection.threadId);
 });
 
-db.on('error', function(err) {
+db.on('error', function (err) {
     console.error('Database error: ', err);
-    if(err.code === 'PROTOCOL_CONNECTION_LOST') {
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
         console.log('Database connection lost, attempting to reconnect...');
     } else {
         throw err;
@@ -124,13 +136,13 @@ const executeQueryWithRetry = (query, values = [], maxRetries = 3) => {
                     reject(new Error('Database query timeout'));
                 }
             }, 8000); // 8 second timeout per query
-            
+
             db.query(query, values, (err, result) => {
                 clearTimeout(queryTimeout);
-                
+
                 if (err) {
                     console.error(`Database query error (attempt ${attempt}):`, err.message, err.code);
-                    
+
                     // Handle various connection errors with retry
                     const retryableCodes = ['ECONNRESET', 'PROTOCOL_CONNECTION_LOST', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'];
                     if ((retryableCodes.includes(err.code) || err.fatal) && attempt < maxRetries) {
@@ -138,7 +150,7 @@ const executeQueryWithRetry = (query, values = [], maxRetries = 3) => {
                         setTimeout(() => attemptQuery(attempt + 1), 2000 * attempt);
                         return;
                     }
-                    
+
                     return reject(err);
                 }
                 resolve(result);
@@ -154,9 +166,9 @@ const executeQueryWithRetry = (query, values = [], maxRetries = 3) => {
 app.post('/api/upload/image', upload.single('image'), (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'No image file provided' 
+            return res.status(400).json({
+                success: false,
+                error: 'No image file provided'
             });
         }
 
@@ -169,9 +181,9 @@ app.post('/api/upload/image', upload.single('image'), (req, res) => {
         });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to upload image' 
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload image'
         });
     }
 });
@@ -180,9 +192,9 @@ app.post('/api/upload/image', upload.single('image'), (req, res) => {
 app.post('/api/upload/images', upload.array('images', 10), (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'No image files provided' 
+            return res.status(400).json({
+                success: false,
+                error: 'No image files provided'
             });
         }
 
@@ -193,7 +205,7 @@ app.post('/api/upload/images', upload.array('images', 10), (req, res) => {
             originalName: file.originalname,
             size: file.size
         }));
-        
+
         res.json({
             success: true,
             images: imageUrls,
@@ -201,9 +213,9 @@ app.post('/api/upload/images', upload.array('images', 10), (req, res) => {
         });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to upload images' 
+        res.status(500).json({
+            success: false,
+            error: 'Failed to upload images'
         });
     }
 });
@@ -212,9 +224,9 @@ app.post('/api/upload/images', upload.array('images', 10), (req, res) => {
 app.post('/api/upload/file', fileUpload.single('file'), (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'No file provided' 
+            return res.status(400).json({
+                success: false,
+                error: 'No file provided'
             });
         }
 
@@ -228,9 +240,9 @@ app.post('/api/upload/file', fileUpload.single('file'), (req, res) => {
         });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message || 'Failed to upload file' 
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to upload file'
         });
     }
 });
@@ -239,97 +251,97 @@ app.post('/api/upload/file', fileUpload.single('file'), (req, res) => {
 
 // GET /api/items - Get all items with optional filtering
 app.get('/api/items', (req, res) => {
-    const { 
-        type, 
-        status, 
-        category, 
-        reporter_email, 
-        location, 
-        brand, 
-        color, 
-        size, 
+    const {
+        type,
+        status,
+        category,
+        reporter_email,
+        location,
+        brand,
+        color,
+        size,
         material,
         date_from,
         date_to,
-        limit = 50, 
-        offset = 0 
+        limit = 50,
+        offset = 0
     } = req.query;
-    
+
     let query = `SELECT * FROM items WHERE 1=1`;
     const queryParams = [];
-    
+
     // Add filters
     if (type && ['lost', 'found'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['active', 'inactive', 'claimed', 'returned', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (category) {
         query += ' AND category = ?';
         queryParams.push(category);
     }
-    
+
     if (reporter_email) {
         query += ' AND reporter_email = ?';
         queryParams.push(reporter_email);
     }
-    
+
     if (location) {
         query += ' AND location LIKE ?';
         queryParams.push(`%${location}%`);
     }
-    
+
     if (brand) {
         query += ' AND brand LIKE ?';
         queryParams.push(`%${brand}%`);
     }
-    
+
     if (color) {
         query += ' AND color LIKE ?';
         queryParams.push(`%${color}%`);
     }
-    
+
     if (size) {
         query += ' AND size = ?';
         queryParams.push(size);
     }
-    
+
     if (material) {
         query += ' AND material LIKE ?';
         queryParams.push(`%${material}%`);
     }
-    
+
     if (date_from) {
         query += ' AND date_reported >= ?';
         queryParams.push(date_from);
     }
-    
+
     if (date_to) {
         query += ' AND date_reported <= ?';
         queryParams.push(date_to);
     }
-    
+
     // Add ordering and pagination
     query += ' ORDER BY date_reported DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching items:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Parse JSON fields
         const processedResults = results.map(item => ({
             ...item,
             images: item.images ? JSON.parse(item.images) : []
         }));
-        
+
         res.json(processedResults);
     });
 });
@@ -337,48 +349,48 @@ app.get('/api/items', (req, res) => {
 // GET /api/items/search - Full-text search items
 app.get('/api/items/search', (req, res) => {
     const { q, type, status, category, limit = 20 } = req.query;
-    
+
     if (!q) {
         return res.status(400).json({ error: 'Search query parameter "q" is required' });
     }
-    
+
     let query = `SELECT *, MATCH(title, description, distinctive_features, detected_objects, detected_categories) AGAINST(? IN NATURAL LANGUAGE MODE) as relevance 
                  FROM items 
                  WHERE MATCH(title, description, distinctive_features, detected_objects, detected_categories) AGAINST(? IN NATURAL LANGUAGE MODE)`;
-    
+
     let queryParams = [q, q];
-    
+
     // Add optional filters
     if (type && ['lost', 'found'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['active', 'inactive', 'claimed', 'returned'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (category) {
         query += ' AND category = ?';
         queryParams.push(category);
     }
-    
+
     query += ' ORDER BY relevance DESC, date_reported DESC LIMIT ?';
     queryParams.push(parseInt(limit));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error searching items:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Parse JSON fields
         const processedResults = results.map(item => ({
             ...item,
             images: item.images ? JSON.parse(item.images) : []
         }));
-        
+
         res.json(processedResults);
     });
 });
@@ -397,13 +409,13 @@ app.get('/api/items/stats', (req, res) => {
             COUNT(DISTINCT reporter_email) as unique_reporters
         FROM items
     `;
-    
+
     db.query(query, (err, results) => {
         if (err) {
             console.error('Error fetching stats:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -412,20 +424,20 @@ app.get('/api/items/stats', (req, res) => {
 app.get('/api/items/:id', (req, res) => {
     const itemId = req.params.id;
     const query = 'SELECT * FROM items WHERE id = ?';
-    
+
     db.query(query, [itemId], (err, results) => {
         if (err) {
             console.error('Error fetching item:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        
+
         const item = results[0];
         item.images = item.images ? JSON.parse(item.images) : [];
-        
+
         res.json(item);
     });
 });
@@ -434,36 +446,36 @@ app.get('/api/items/:id', (req, res) => {
 app.get('/api/items/reporter/:email', (req, res) => {
     const reporterEmail = req.params.email;
     const { type, status, limit = 50, offset = 0 } = req.query;
-    
+
     let query = 'SELECT * FROM items WHERE reporter_email = ?';
     let queryParams = [reporterEmail];
-    
+
     // Add optional filters
     if (type && ['lost', 'found'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['active', 'inactive', 'claimed', 'returned'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     query += ' ORDER BY date_reported DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching items by reporter:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Parse JSON fields
         const processedResults = results.map(item => ({
             ...item,
             images: item.images ? JSON.parse(item.images) : []
         }));
-        
+
         res.json(processedResults);
     });
 });
@@ -491,36 +503,36 @@ app.post('/api/items', (req, res) => {
         detected_objects,
         detected_categories
     } = req.body;
-    
+
     // Validate required fields
     if (!id || !title || !type || !reporter_id || !reporter_email) {
-        return res.status(400).json({ 
-            error: 'Missing required fields: id, title, type, reporter_id, reporter_email' 
+        return res.status(400).json({
+            error: 'Missing required fields: id, title, type, reporter_id, reporter_email'
         });
     }
-    
+
     // Validate enum values
     if (!['lost', 'found'].includes(type)) {
         return res.status(400).json({ error: 'Type must be either "lost" or "found"' });
     }
-    
-    if (status && !['active', 'inactive', 'claimed', 'returned', 'resolved', 'pending_turnin', 'fake_report'].includes(status)) {
-        return res.status(400).json({ error: 'Status must be one of: active, inactive, claimed, returned, resolved, pending_turnin, fake_report' });
+
+    if (status && !['active', 'inactive', 'claimed', 'returned', 'resolved', 'Pending Turning-in', 'Fake Report'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be one of: active, inactive, claimed, returned, resolved, Pending Turning-in, Fake Report' });
     }
-    
+
     // Validate coordinates if provided
     if ((latitude && !longitude) || (!latitude && longitude)) {
         return res.status(400).json({ error: 'Both latitude and longitude must be provided together' });
     }
-    
+
     if (latitude && (latitude < -90 || latitude > 90)) {
         return res.status(400).json({ error: 'Latitude must be between -90 and 90' });
     }
-    
+
     if (longitude && (longitude < -180 || longitude > 180)) {
         return res.status(400).json({ error: 'Longitude must be between -180 and 180' });
     }
-   
+
 
     const query = `INSERT INTO items (
         id, title, description, category, type, status, location, latitude, longitude,
@@ -528,53 +540,53 @@ app.post('/api/items', (req, res) => {
         images, detected_objects, detected_categories
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ'),
               STR_TO_DATE(?, '%Y-%m-%dT%H:%i:%s.%fZ'), ?, ?, ?, ?, ?, ?, ?, ?)`;
-    
+
     const values = [
         id, title, description, category, type, status, location, latitude, longitude,
         date_lost_found, turnin_deadline, turnin_status, reporter_id, reporter_name, reporter_email, reporter_department, JSON.stringify(images),
         detected_objects, detected_categories
     ];
-    
+
     // Execute query with retry logic
     executeQueryWithRetry(query, values)
         .then(async (result) => {
-        
-        // Item created successfully, now run auto-matching
-        const newItem = {
-            id, title, description, category, type, status, location, latitude, longitude,
-            date_lost_found, reporter_id, reporter_name, reporter_email, reporter_department,
-            images: JSON.parse(JSON.stringify(images)), detected_objects, detected_categories,
-            date_reported: new Date().toISOString()
-        };
-        
-        // Run auto-matching in the background (don't wait for it to complete)
-        runAutoMatching(newItem)
-            .then(matchResult => {
-                if (matchResult.success && matchResult.matchesFound > 0) {
-                    console.log(`Auto-matching completed: ${matchResult.matchesFound} matches found for item ${id}`);
-                    if (matchResult.highScoreMatches.length > 0) {
-                        console.log(`High-confidence matches found: ${matchResult.highScoreMatches.length}`);
+
+            // Item created successfully, now run auto-matching
+            const newItem = {
+                id, title, description, category, type, status, location, latitude, longitude,
+                date_lost_found, reporter_id, reporter_name, reporter_email, reporter_department,
+                images: JSON.parse(JSON.stringify(images)), detected_objects, detected_categories,
+                date_reported: new Date().toISOString()
+            };
+
+            // Run auto-matching in the background (don't wait for it to complete)
+            runAutoMatching(newItem)
+                .then(matchResult => {
+                    if (matchResult.success && matchResult.matchesFound > 0) {
+                        console.log(`Auto-matching completed: ${matchResult.matchesFound} matches found for item ${id}`);
+                        if (matchResult.highScoreMatches.length > 0) {
+                            console.log(`High-confidence matches found: ${matchResult.highScoreMatches.length}`);
+                        }
+                    } else {
+                        console.log(`Auto-matching completed: No matches found for item ${id}`);
                     }
-                } else {
-                    console.log(`Auto-matching completed: No matches found for item ${id}`);
-                }
-            })
-            .catch(error => {
-                console.error('Auto-matching failed:', error);
-            });
-        
-            res.status(201).json({ 
-                message: 'Item created successfully', 
-                itemId: id 
+                })
+                .catch(error => {
+                    console.error('Auto-matching failed:', error);
+                });
+
+            res.status(201).json({
+                message: 'Item created successfully',
+                itemId: id
             });
         })
         .catch((error) => {
             console.error('Failed to create item after retries:', error);
-            
+
             if (error.code === 'ER_DUP_ENTRY') {
                 return res.status(409).json({ error: 'Item with this ID already exists' });
             }
-            
+
             return res.status(500).json({ error: 'Internal server error' });
         });
 });
@@ -582,11 +594,11 @@ app.post('/api/items', (req, res) => {
 // PUT /api/items/:id - Update an item
 app.put('/api/items/:id', (req, res) => {
     const itemId = req.params.id;
-    
+
     console.log('=== UPDATE ITEM BACKEND ===');
     console.log('Item ID:', itemId);
     console.log('Request body:', JSON.stringify(req.body, null, 2));
-    
+
     const {
         title,
         description,
@@ -609,21 +621,21 @@ app.put('/api/items/:id', (req, res) => {
 
     if (date_lost_found) req.body.date_lost_found = date_lost_found.replace('T', ' ').replace('Z', '');
 
-    
+
     const updateFields = [];
     const values = [];
-    
+
     // Build dynamic update query
     if (title !== undefined) {
         updateFields.push('title = ?');
         values.push(title);
     }
-    
+
     if (description !== undefined) {
         updateFields.push('description = ?');
         values.push(description);
     }
-    
+
     // Handle categories (prioritize categories array over single category)
     if (categories !== undefined) {
         updateFields.push('category = ?');
@@ -632,7 +644,7 @@ app.put('/api/items/:id', (req, res) => {
         updateFields.push('category = ?');
         values.push(category);
     }
-    
+
     if (type !== undefined) {
         if (!['lost', 'found'].includes(type)) {
             return res.status(400).json({ error: 'Type must be either "lost" or "found"' });
@@ -640,20 +652,20 @@ app.put('/api/items/:id', (req, res) => {
         updateFields.push('type = ?');
         values.push(type);
     }
-    
+
     if (status !== undefined) {
-        if (!['active', 'inactive', 'claimed', 'returned', 'resolved', 'pending_turnin', 'fake_report'].includes(status)) {
-            return res.status(400).json({ error: 'Status must be one of: active, inactive, claimed, returned, resolved, pending_turnin, fake_report' });
+        if (!['active', 'inactive', 'claimed', 'returned', 'resolved', 'Pending Turning-in', 'Fake Report'].includes(status)) {
+            return res.status(400).json({ error: 'Status must be one of: active, inactive, claimed, returned, resolved, Pending Turning-in, Fake Report' });
         }
         updateFields.push('status = ?');
         values.push(status);
     }
-    
+
     if (location !== undefined) {
         updateFields.push('location = ?');
         values.push(location);
     }
-    
+
     if (latitude !== undefined) {
         if (latitude < -90 || latitude > 90) {
             return res.status(400).json({ error: 'Latitude must be between -90 and 90' });
@@ -661,7 +673,7 @@ app.put('/api/items/:id', (req, res) => {
         updateFields.push('latitude = ?');
         values.push(latitude);
     }
-    
+
     if (longitude !== undefined) {
         if (longitude < -180 || longitude > 180) {
             return res.status(400).json({ error: 'Longitude must be between -180 and 180' });
@@ -669,17 +681,17 @@ app.put('/api/items/:id', (req, res) => {
         updateFields.push('longitude = ?');
         values.push(longitude);
     }
-    
+
     if (date_lost_found !== undefined) {
         updateFields.push('date_lost_found = ?');
         values.push(date_lost_found);
     }
-    
+
     if (date_occurred !== undefined) {
         updateFields.push('date_lost_found = ?');
         values.push(date_occurred);
     }
-    
+
     if (coordinates !== undefined) {
         if (coordinates && coordinates.latitude !== undefined) {
             updateFields.push('latitude = ?');
@@ -690,58 +702,58 @@ app.put('/api/items/:id', (req, res) => {
             values.push(coordinates.longitude);
         }
     }
-    
+
     if (geotagged !== undefined) {
         // Handle geotagged flag - if false, clear coordinates
         if (!geotagged) {
             updateFields.push('latitude = NULL, longitude = NULL');
         }
     }
-    
+
     if (reporter_name !== undefined) {
         updateFields.push('reporter_name = ?');
         values.push(reporter_name);
     }
-    
+
     if (images !== undefined) {
         updateFields.push('images = ?');
         values.push(JSON.stringify(images));
     }
-    
+
     if (detected_objects !== undefined) {
         updateFields.push('detected_objects = ?');
         values.push(detected_objects);
     }
-    
+
     if (detected_categories !== undefined) {
         updateFields.push('detected_categories = ?');
         values.push(detected_categories);
     }
-    
+
     if (updateFields.length === 0) {
         return res.status(400).json({ error: 'No fields to update' });
     }
-    
+
     // Add updated_at timestamp
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(itemId);
-    
+
     const query = `UPDATE items SET ${updateFields.join(', ')} WHERE id = ?`;
-    
+
     console.log('Update fields:', updateFields);
     console.log('Update values:', values);
     console.log('Final query:', query);
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error updating item:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        
+
         res.json({ message: 'Item updated successfully' });
     });
 });
@@ -750,26 +762,182 @@ app.put('/api/items/:id', (req, res) => {
 app.patch('/api/items/:id/status', (req, res) => {
     const itemId = req.params.id;
     const { status } = req.body;
-    
-    if (!status || !['active', 'inactive', 'claimed', 'returned', 'resolved', 'pending_turnin', 'fake_report'].includes(status)) {
-        return res.status(400).json({ 
-            error: 'Status must be one of: active, inactive, claimed, returned, resolved, pending_turnin, fake_report' 
+
+    if (!status || !['active', 'inactive', 'claimed', 'returned', 'resolved', 'Pending Turning-in', 'Fake Report'].includes(status)) {
+        return res.status(400).json({
+            error: 'Status must be one of: active, inactive, claimed, returned, resolved, Pending Turning-in, Fake Report'
         });
     }
-    
+
     const query = 'UPDATE items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-    
+
     db.query(query, [status, itemId], (err, result) => {
         if (err) {
             console.error('Error updating item status:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        
+
         res.json({ message: `Item status updated to ${status} successfully` });
+    });
+});
+
+// POST /api/items/:id/fake-report - Report an item as fake
+app.post('/api/items/:id/fake-report', (req, res) => {
+    const itemId = req.params.id;
+    const { reportedBy } = req.body; // Email of the reporter
+
+    console.log('=== FAKE REPORT REQUEST ===');
+    console.log('Item ID:', itemId);
+    console.log('Reported By:', reportedBy);
+    console.log('Request body:', JSON.stringify(req.body));
+
+    if (!reportedBy) {
+        console.error('VALIDATION ERROR: Reporter email is missing');
+        return res.status(400).json({ error: 'Reporter email is required' });
+    }
+
+    // Get the item to find the original reporter
+    const getItemQuery = 'SELECT reporter_id FROM items WHERE id = ?';
+    console.log('Executing query:', getItemQuery, 'with itemId:', itemId);
+
+    db.query(getItemQuery, [itemId], (err, itemResults) => {
+        if (err) {
+            console.error('❌ DATABASE ERROR - Error fetching item:', err);
+            console.error('Error code:', err.code);
+            console.error('Error message:', err.message);
+            console.error('SQL State:', err.sqlState);
+            return res.status(500).json({
+                error: 'Internal server error',
+                details: err.message,
+                code: err.code
+            });
+        }
+
+        console.log('✅ Item query successful. Results:', JSON.stringify(itemResults));
+
+        if (itemResults.length === 0) {
+            console.error('VALIDATION ERROR: Item not found with ID:', itemId);
+            return res.status(404).json({ error: 'Item not found' });
+        }
+
+        const reporterId = itemResults[0].reporter_id;
+        console.log('Original Reporter ID:', reporterId);
+
+        // Check if user is trying to report their own item
+        if (reporterId === reportedBy) {
+            console.log('VALIDATION ERROR: User trying to report own item');
+            return res.status(400).json({ error: 'You cannot report your own item as fake' });
+        }
+
+        // Update item status to Fake Report
+        const updateItemQuery = 'UPDATE items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        console.log('Updating item status. Query:', updateItemQuery);
+        console.log('Parameters: status="Fake Report", itemId=', itemId);
+
+        db.query(updateItemQuery, ['Fake Report', itemId], (err, updateResult) => {
+            if (err) {
+                console.error('❌ DATABASE ERROR - Error updating item status:', err);
+                console.error('Error code:', err.code);
+                console.error('Error message:', err.message);
+                console.error('SQL State:', err.sqlState);
+                console.error('SQL Error Number:', err.errno);
+                return res.status(500).json({
+                    error: 'Internal server error',
+                    details: err.message,
+                    code: err.code,
+                    sqlState: err.sqlState
+                });
+            }
+
+            console.log('✅ Item status updated successfully. Affected rows:', updateResult.affectedRows);
+
+            // Increment fake_report_count for the original reporter
+            const updateUserQuery = `
+                UPDATE users 
+                SET fake_report_count = COALESCE(fake_report_count, 0) + 1 
+                WHERE email = ?
+            `;
+
+            console.log('Updating user fake report count. Query:', updateUserQuery);
+            console.log('Parameter: reporterId=', reporterId);
+
+            db.query(updateUserQuery, [reporterId], (err, userUpdateResult) => {
+                if (err) {
+                    console.error('❌ DATABASE ERROR - Error updating user fake report count:', err);
+                    console.error('Error code:', err.code);
+                    console.error('Error message:', err.message);
+                    console.error('SQL State:', err.sqlState);
+                    return res.status(500).json({
+                        error: 'Failed to update user fake report count',
+                        details: err.message,
+                        code: err.code
+                    });
+                }
+
+                console.log('✅ User fake report count updated. Affected rows:', userUpdateResult.affectedRows);
+
+                if (userUpdateResult.affectedRows === 0) {
+                    console.warn('⚠️ WARNING: No user found with email:', reporterId);
+                    console.warn('Item status was updated but user record not found');
+                    // Still return success for item reporting, but note the user update failed
+                    return res.json({
+                        message: 'Item reported as fake successfully',
+                        itemId,
+                        reporterId,
+                        warning: 'User not found - fake report count not incremented'
+                    });
+                }
+
+                // Create notification for the original reporter
+                const notificationId = `fake_report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const notificationQuery = `
+                    INSERT INTO notifications (id, type, title, message, data, \`read\`, created_at, user_email) 
+                    VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)
+                `;
+
+                const notificationData = JSON.stringify({
+                    type: 'fake_report',
+                    itemId: itemId,
+                    reportedBy: reportedBy
+                });
+
+                console.log('Creating notification for user:', reporterId);
+                console.log('Notification ID:', notificationId);
+
+                db.query(notificationQuery, [
+                    notificationId,
+                    'warning',
+                    'Item Reported as Fake',
+                    'Your item has been flagged as a fake report. Please review the item details.',
+                    notificationData,
+                    false,
+                    reporterId
+                ], (notifErr, notifResult) => {
+                    if (notifErr) {
+                        console.error('❌ ERROR creating notification:', notifErr);
+                        console.error('Notification error code:', notifErr.code);
+                        console.error('Notification error message:', notifErr.message);
+                        // Don't fail the request if notification creation fails
+                    } else {
+                        console.log('✅ Notification created successfully for user:', reporterId);
+                        console.log('Notification result:', JSON.stringify(notifResult));
+                    }
+                });
+
+                console.log('=== FAKE REPORT COMPLETED SUCCESSFULLY ===');
+                res.json({
+                    message: 'Item reported as fake successfully',
+                    itemId,
+                    reporterId,
+                    userUpdated: true,
+                    newFakeReportCount: userUpdateResult.affectedRows
+                });
+            });
+        });
     });
 });
 
@@ -777,41 +945,41 @@ app.patch('/api/items/:id/status', (req, res) => {
 app.delete('/api/items/:id', (req, res) => {
     const itemId = req.params.id;
     const { userEmail } = req.body;
-    
+
     // Validate that userEmail is provided
     if (!userEmail) {
         return res.status(400).json({ error: 'User email is required for authorization' });
     }
-    
+
     // First, check if the item exists and if the user is the reporter
     const checkQuery = 'SELECT reporter_id FROM items WHERE id = ?';
-    
+
     db.query(checkQuery, [itemId], (err, results) => {
         if (err) {
             console.error('Error checking item ownership:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        
+
         const item = results[0];
-        
+
         // Check if the current user is the reporter of this item
         if (item.reporter_id !== userEmail) {
             return res.status(403).json({ error: 'You can only delete items that you reported' });
         }
-        
+
         // If authorized, proceed with deletion
         const deleteQuery = 'DELETE FROM items WHERE id = ?';
-        
+
         db.query(deleteQuery, [itemId], (deleteErr, deleteResult) => {
             if (deleteErr) {
                 console.error('Error deleting item:', deleteErr);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             res.json({ message: 'Item deleted successfully' });
         });
     });
@@ -820,23 +988,23 @@ app.delete('/api/items/:id', (req, res) => {
 // GET /api/items/nearby - Get items within a certain radius (requires coordinates)
 app.get('/api/items/nearby', (req, res) => {
     const { lat, lng, radius = 5, type, status, category, limit = 20 } = req.query;
-    
+
     if (!lat || !lng) {
-        return res.status(400).json({ 
-            error: 'Latitude and longitude parameters are required' 
+        return res.status(400).json({
+            error: 'Latitude and longitude parameters are required'
         });
     }
-    
+
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
     const radiusKm = parseFloat(radius);
-    
+
     if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusKm)) {
-        return res.status(400).json({ 
-            error: 'Invalid latitude, longitude, or radius values' 
+        return res.status(400).json({
+            error: 'Invalid latitude, longitude, or radius values'
         });
     }
-    
+
     let query = `
         SELECT *, 
         (
@@ -852,40 +1020,40 @@ app.get('/api/items/nearby', (req, res) => {
         WHERE latitude IS NOT NULL 
         AND longitude IS NOT NULL
     `;
-    
+
     let queryParams = [latitude, longitude, latitude];
-    
+
     // Add optional filters
     if (type && ['lost', 'found'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['active', 'inactive', 'claimed', 'returned'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (category) {
         query += ' AND category = ?';
         queryParams.push(category);
     }
-    
+
     query += ' HAVING distance <= ? ORDER BY distance ASC LIMIT ?';
     queryParams.push(radiusKm, parseInt(limit));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching nearby items:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Parse JSON fields
         const processedResults = results.map(item => ({
             ...item,
             images: item.images ? JSON.parse(item.images) : []
         }));
-        
+
         res.json(processedResults);
     });
 });
@@ -893,13 +1061,13 @@ app.get('/api/items/nearby', (req, res) => {
 // GET /api/items/categories - Get all unique categories
 app.get('/api/items/categories', (req, res) => {
     const query = 'SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category';
-    
+
     db.query(query, (err, results) => {
         if (err) {
             console.error('Error fetching categories:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         const categories = results.map(row => row.category);
         res.json(categories);
     });
@@ -921,15 +1089,15 @@ db.on('connection', function (connection) {
     console.log('New connection established as id ' + connection.threadId);
 });
 
-db.on('error', function(err) {
+db.on('error', function (err) {
     console.error('Database error:', err);
-    if(err.code === 'PROTOCOL_CONNECTION_LOST') {
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
         console.log('Database connection was closed.');
     }
-    if(err.code === 'ER_CON_COUNT_ERROR') {
+    if (err.code === 'ER_CON_COUNT_ERROR') {
         console.log('Database has too many connections.');
     }
-    if(err.code === 'ECONNREFUSED') {
+    if (err.code === 'ECONNREFUSED') {
         console.log('Database connection was refused.');
     }
 });
@@ -941,7 +1109,7 @@ db.on('error', function(err) {
 // GET /api/users - Get all users
 app.get('/api/users', (req, res) => {
     const query = 'SELECT id, google_id, email, full_name, profile_image, department, status, created_at, updated_at, last_login_at FROM users';
-    
+
     db.query(query, (err, results) => {
         if (err) {
             console.error('Error fetching users:', err);
@@ -954,23 +1122,23 @@ app.get('/api/users', (req, res) => {
 // GET /api/users/search - Search users by email or name
 app.get('/api/users/search', (req, res) => {
     const { q } = req.query;
-    
+
     if (!q) {
         return res.status(400).json({ error: 'Search query parameter "q" is required' });
     }
-    
+
     const query = `SELECT id, google_id, email, full_name, profile_image, department, status, created_at, updated_at, last_login_at, two_factor_enabled, suspended_until, suspension_reason, suspended_by 
                    FROM users 
                    WHERE email LIKE ? OR full_name LIKE ?`;
-    
+
     const searchTerm = `%${q}%`;
-    
+
     db.query(query, [searchTerm, searchTerm], (err, results) => {
         if (err) {
             console.error('Error searching users:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results);
     });
 });
@@ -979,40 +1147,67 @@ app.get('/api/users/search', (req, res) => {
 app.get('/api/users/:id', (req, res) => {
     const userId = req.params.id;
     const query = 'SELECT id, google_id, email, full_name, profile_image, department, status, created_at, updated_at, last_login_at, two_factor_enabled, suspended_until, suspension_reason, suspended_by FROM users WHERE id = ?';
-    
+
     db.query(query, [userId], (err, results) => {
         if (err) {
             console.error('Error fetching user:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         res.json(results[0]);
+    });
+});
+
+// GET /api/users/email/:email/fake-reports - Get fake report count for a user by email
+app.get('/api/users/email/:email/fake-reports', (req, res) => {
+    const email = req.params.email;
+    console.log('Fetching fake report count for:', email);
+
+    const query = 'SELECT COALESCE(fake_report_count, 0) as fake_report_count FROM users WHERE email = ?';
+
+    db.query(query, [email], (err, results) => {
+        if (err) {
+            console.error('Error fetching user fake report count:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+
+        if (results.length === 0) {
+            console.warn('User not found for email:', email);
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        console.log('Fake report count for', email, ':', results[0].fake_report_count);
+
+        res.json({
+            email,
+            fake_report_count: results[0].fake_report_count
+        });
     });
 });
 
 // POST /api/users - Create a new user
 app.post('/api/users', async (req, res) => {
     const { google_id, email, password, full_name, profile_image, department, status, two_factor_enabled } = req.body;
-    
+
     // Validate required fields
     if (!google_id || !email) {
         return res.status(400).json({ error: 'google_id and email are required' });
     }
-    
+
     try {
         // Hash password if provided
         let hashedPassword = null;
         if (password) {
             hashedPassword = await bcrypt.hash(password, 10);
         }
-        
+
         const query = `INSERT INTO users (google_id, email, password, full_name, profile_image, department, status) 
                        VALUES (?, ?, ?, ?, ?, ?, ?)`;
-        
+
         const values = [
             google_id,
             email,
@@ -1022,7 +1217,7 @@ app.post('/api/users', async (req, res) => {
             department || null,
             status || 'Online'
         ];
-        
+
         db.query(query, values, (err, result) => {
             if (err) {
                 console.error('Error creating user:', err);
@@ -1031,10 +1226,10 @@ app.post('/api/users', async (req, res) => {
                 }
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
-            res.status(201).json({ 
-                message: 'User created successfully', 
-                userId: result.insertId 
+
+            res.status(201).json({
+                message: 'User created successfully',
+                userId: result.insertId
             });
         });
     } catch (error) {
@@ -1047,12 +1242,12 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
     const userId = req.params.id;
     const { google_id, email, password, full_name, profile_image, department, status, two_factor_enabled } = req.body;
-    
+
     try {
         // Build dynamic update query
         let updateFields = [];
         let values = [];
-        
+
         if (google_id !== undefined) {
             updateFields.push('google_id = ?');
             values.push(google_id);
@@ -1086,17 +1281,17 @@ app.put('/api/users/:id', async (req, res) => {
             updateFields.push('two_factor_enabled = ?');
             values.push(two_factor_enabled);
         }
-        
+
         if (updateFields.length === 0) {
             return res.status(400).json({ error: 'No fields to update' });
         }
-        
+
         // Add updated_at timestamp
         updateFields.push('updated_at = CURRENT_TIMESTAMP');
         values.push(userId);
-        
+
         const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
-        
+
         db.query(query, values, (err, result) => {
             if (err) {
                 console.error('Error updating user:', err);
@@ -1105,11 +1300,11 @@ app.put('/api/users/:id', async (req, res) => {
                 }
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ error: 'User not found' });
             }
-            
+
             res.json({ message: 'User updated successfully' });
         });
     } catch (error) {
@@ -1122,17 +1317,17 @@ app.put('/api/users/:id', async (req, res) => {
 app.patch('/api/users/:id/login', (req, res) => {
     const userId = req.params.id;
     const query = 'UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?';
-    
+
     db.query(query, [userId], (err, result) => {
         if (err) {
             console.error('Error updating last login:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         res.json({ message: 'Last login updated successfully' });
     });
 });
@@ -1141,23 +1336,23 @@ app.patch('/api/users/:id/login', (req, res) => {
 app.patch('/api/users/:id/status', (req, res) => {
     const userId = req.params.id;
     const { status } = req.body;
-    
+
     if (!status || !['Online', 'Offline'].includes(status)) {
         return res.status(400).json({ error: 'Status must be either "Online" or "Offline"' });
     }
-    
+
     const query = 'UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-    
+
     db.query(query, [status, userId], (err, result) => {
         if (err) {
             console.error('Error updating user status:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         res.json({ message: `User status updated to ${status} successfully` });
     });
 });
@@ -1166,17 +1361,17 @@ app.patch('/api/users/:id/status', (req, res) => {
 app.delete('/api/users/:id', (req, res) => {
     const userId = req.params.id;
     const query = 'DELETE FROM users WHERE id = ?';
-    
+
     db.query(query, [userId], (err, result) => {
         if (err) {
             console.error('Error deleting user:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         res.json({ message: 'User deleted successfully' });
     });
 });
@@ -1186,31 +1381,31 @@ app.delete('/api/users/:id', (req, res) => {
 // GET /api/users/:email/settings - Get user settings by email
 app.get('/api/users/:email/settings', (req, res) => {
     const email = req.params.email;
-    
+
     // First verify user exists
     const userQuery = 'SELECT id FROM users WHERE email = ?';
-    
+
     db.query(userQuery, [email], (err, userResults) => {
         if (err) {
             console.error('Error checking user:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (userResults.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         const userId = userResults[0].id;
-        
+
         // Get user settings
         const settingsQuery = 'SELECT * FROM user_settings WHERE user_id = ?';
-        
+
         db.query(settingsQuery, [userId], (err, settingsResults) => {
             if (err) {
                 console.error('Error fetching user settings:', err);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             if (settingsResults.length === 0) {
                 // Return default settings if none exist
                 const defaultSettings = {
@@ -1220,7 +1415,7 @@ app.get('/api/users/:email/settings', (req, res) => {
                 };
                 return res.json(defaultSettings);
             }
-            
+
             const settings = settingsResults[0];
             res.json({
                 notifications: Boolean(settings.notifications),
@@ -1236,40 +1431,40 @@ app.get('/api/users/:email/settings', (req, res) => {
 app.put('/api/users/:email/settings', (req, res) => {
     const email = req.params.email;
     const { notifications, emailAlerts, saveImageToGallery } = req.body;
-    
+
     // Validate input
-    if (typeof notifications !== 'boolean' || 
-        typeof emailAlerts !== 'boolean' || 
+    if (typeof notifications !== 'boolean' ||
+        typeof emailAlerts !== 'boolean' ||
         typeof saveImageToGallery !== 'boolean') {
-        return res.status(400).json({ 
-            error: 'Invalid settings format. All settings must be boolean values.' 
+        return res.status(400).json({
+            error: 'Invalid settings format. All settings must be boolean values.'
         });
     }
-    
+
     // First verify user exists
     const userQuery = 'SELECT id FROM users WHERE email = ?';
-    
+
     db.query(userQuery, [email], (err, userResults) => {
         if (err) {
             console.error('Error checking user:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (userResults.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         const userId = userResults[0].id;
-        
+
         // Check if settings already exist
         const checkQuery = 'SELECT id FROM user_settings WHERE user_id = ?';
-        
+
         db.query(checkQuery, [userId], (err, existingSettings) => {
             if (err) {
                 console.error('Error checking existing settings:', err);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             if (existingSettings.length > 0) {
                 // Update existing settings
                 const updateQuery = `
@@ -1277,14 +1472,14 @@ app.put('/api/users/:email/settings', (req, res) => {
                     SET notifications = ?, email_alerts = ?, save_image_to_gallery = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE user_id = ?
                 `;
-                
+
                 db.query(updateQuery, [notifications, emailAlerts, saveImageToGallery, userId], (err, result) => {
                     if (err) {
                         console.error('Error updating user settings:', err);
                         return res.status(500).json({ error: 'Internal server error' });
                     }
-                    
-                    res.json({ 
+
+                    res.json({
                         message: 'Settings updated successfully',
                         settings: { notifications, emailAlerts, saveImageToGallery }
                     });
@@ -1295,14 +1490,14 @@ app.put('/api/users/:email/settings', (req, res) => {
                     INSERT INTO user_settings (user_id, notifications, email_alerts, save_image_to_gallery) 
                     VALUES (?, ?, ?, ?)
                 `;
-                
+
                 db.query(insertQuery, [userId, notifications, emailAlerts, saveImageToGallery], (err, result) => {
                     if (err) {
                         console.error('Error creating user settings:', err);
                         return res.status(500).json({ error: 'Internal server error' });
                     }
-                    
-                    res.json({ 
+
+                    res.json({
                         message: 'Settings created successfully',
                         settings: { notifications, emailAlerts, saveImageToGallery }
                     });
@@ -1315,56 +1510,56 @@ app.put('/api/users/:email/settings', (req, res) => {
 // DELETE /api/users/:email/delete-all-data - Delete all user data (destructive operation)
 app.delete('/api/users/:email/delete-all-data', async (req, res) => {
     const email = req.params.email;
-    
+
     try {
         // First verify user exists and get user ID
         const userQuery = 'SELECT id FROM users WHERE email = ?';
         const userResults = await executeQueryWithRetry(userQuery, [email]);
-        
+
         if (userResults.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        
+
         const userId = userResults[0].id;
-        
+
         console.log(`Starting deletion of all data for user: ${email} (ID: ${userId})`);
-        
+
         // Delete in order to respect foreign key constraints
         // 1. Delete feedback responses
         await executeQueryWithRetry('DELETE FROM feedback_responses WHERE feedback_id IN (SELECT id FROM feedback WHERE user_email = ?)', [email]);
         console.log('Deleted feedback responses');
-        
+
         // 2. Delete feedback
         await executeQueryWithRetry('DELETE FROM feedback WHERE user_email = ?', [email]);
         console.log('Deleted feedback');
-        
+
         // 3. Delete support ticket responses
         await executeQueryWithRetry('DELETE FROM support_ticket_responses WHERE ticket_id IN (SELECT id FROM support_tickets WHERE user_email = ?)', [email]);
         console.log('Deleted support ticket responses');
-        
+
         // 4. Delete support tickets
         await executeQueryWithRetry('DELETE FROM support_tickets WHERE user_email = ?', [email]);
         console.log('Deleted support tickets');
-        
+
         // 5. Delete notifications
         await executeQueryWithRetry('DELETE FROM notifications WHERE user_email = ?', [email]);
         console.log('Deleted notifications');
-        
+
         // 6. Delete claims (using google_user_id which stores the email)
         await executeQueryWithRetry('DELETE FROM claims WHERE google_user_id = ?', [email]);
         console.log('Deleted claims');
-        
+
         // 7. Delete matches where user is involved
         await executeQueryWithRetry(
             'DELETE FROM matches WHERE lost_item_id IN (SELECT id FROM items WHERE reporter_email = ?) OR found_item_id IN (SELECT id FROM items WHERE reporter_email = ?)',
             [email, email]
         );
         console.log('Deleted matches');
-        
+
         // 8. Delete items reported by user
         await executeQueryWithRetry('DELETE FROM items WHERE reporter_email = ?', [email]);
         console.log('Deleted items');
-        
+
         // 9. Delete user settings (if table exists)
         try {
             await executeQueryWithRetry('DELETE FROM user_settings WHERE user_id = ?', [userId]);
@@ -1376,7 +1571,7 @@ app.delete('/api/users/:email/delete-all-data', async (req, res) => {
                 throw err;
             }
         }
-        
+
         // 10. Delete user violations (if table exists)
         try {
             await executeQueryWithRetry('DELETE FROM user_violations WHERE user_id = ?', [userId]);
@@ -1388,22 +1583,22 @@ app.delete('/api/users/:email/delete-all-data', async (req, res) => {
                 throw err;
             }
         }
-        
+
         // 11. Finally delete the user
         await executeQueryWithRetry('DELETE FROM users WHERE id = ?', [userId]);
         console.log('Deleted user account');
-        
-        res.json({ 
+
+        res.json({
             success: true,
             message: 'All user data has been permanently deleted',
             deletedFor: email
         });
-        
+
     } catch (err) {
         console.error('Error deleting user data:', err);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to delete user data',
-            details: err.message 
+            details: err.message
         });
     }
 });
@@ -1412,55 +1607,55 @@ app.delete('/api/users/:email/delete-all-data', async (req, res) => {
 
 // GET /api/matches - Get all matches with optional filtering
 app.get('/api/matches', (req, res) => {
-    const { 
-        status, 
-        lost_item_id, 
-        found_item_id, 
+    const {
+        status,
+        lost_item_id,
+        found_item_id,
         user_email,
         min_score,
         max_score,
-        limit = 50, 
-        offset = 0 
+        limit = 50,
+        offset = 0
     } = req.query;
-    
+
     let query = `SELECT * FROM matches WHERE 1=1`;
     const queryParams = [];
-    
+
     // Add filters
     if (status && ['pending', 'accepted', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (lost_item_id) {
         query += ' AND lost_item_id = ?';
         queryParams.push(lost_item_id);
     }
-    
+
     if (found_item_id) {
         query += ' AND found_item_id = ?';
         queryParams.push(found_item_id);
     }
-    
+
     if (user_email) {
         query += ' AND (lost_item_reporter_email = ? OR found_item_reporter_email = ?)';
         queryParams.push(user_email, user_email);
     }
-    
+
     if (min_score) {
         query += ' AND score >= ?';
         queryParams.push(parseFloat(min_score));
     }
-    
+
     if (max_score) {
         query += ' AND score <= ?';
         queryParams.push(parseFloat(max_score));
     }
-    
+
     // Add ordering and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching matches:', err);
@@ -1479,7 +1674,7 @@ app.get('/api/matches/test', (req, res) => {
 app.get('/api/matches/stats', (req, res) => {
     console.log('STATS ROUTE HIT - URL:', req.url, 'Params:', req.params);
     const { user_email } = req.query;
-    
+
     let query = `
         SELECT 
             COUNT(*) as total,
@@ -1490,20 +1685,20 @@ app.get('/api/matches/stats', (req, res) => {
             AVG(score) as average_score
         FROM matches
     `;
-    
+
     const queryParams = [];
-    
+
     if (user_email) {
         query += ' WHERE (lost_item_reporter_email = ? OR found_item_reporter_email = ?)';
         queryParams.push(user_email, user_email);
     }
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching match statistics:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         const stats = results[0];
         res.json({
             total: stats.total || 0,
@@ -1520,7 +1715,7 @@ app.get('/api/matches/stats', (req, res) => {
 app.get('/api/matches/user/:email', (req, res) => {
     const userEmail = req.params.email;
     const { status, limit = 50, offset = 0 } = req.query;
-    
+
     // Include image fields for proper image display
     let query = `SELECT 
         id, created_at, updated_at, status, score,
@@ -1536,15 +1731,15 @@ app.get('/api/matches/user/:email', (req, res) => {
         found_item_detected_objects, found_item_detected_categories
     FROM matches WHERE (lost_item_reporter_email = ? OR found_item_reporter_email = ?)`;
     const queryParams = [userEmail, userEmail];
-    
+
     if (status && ['pending', 'accepted', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching user matches:', err);
@@ -1558,17 +1753,17 @@ app.get('/api/matches/user/:email', (req, res) => {
 app.get('/api/matches/:id', (req, res) => {
     const matchId = req.params.id;
     const query = 'SELECT * FROM matches WHERE id = ?';
-    
+
     db.query(query, [matchId], (err, results) => {
         if (err) {
             console.error('Error fetching match:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'Match not found' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -1612,16 +1807,16 @@ app.post('/api/matches', (req, res) => {
         found_item_detected_objects,
         found_item_detected_categories
     } = req.body;
-    
+
     // Validate required fields
     if (!id || !score || !lost_item_id || !found_item_id) {
         return res.status(400).json({ error: 'Missing required fields: id, score, lost_item_id, found_item_id' });
     }
-    
+
     if (!['pending', 'accepted', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status. Must be: pending, accepted, rejected, or resolved' });
     }
-    
+
     const query = `
         INSERT INTO matches (
             id, status, score, lost_item_id, lost_item_title, lost_item_description,
@@ -1636,7 +1831,7 @@ app.post('/api/matches', (req, res) => {
             found_item_detected_categories
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
+
     const values = [
         id, status, score, lost_item_id, lost_item_title, lost_item_description,
         lost_item_category, lost_item_location, lost_item_latitude, lost_item_longitude,
@@ -1649,7 +1844,7 @@ app.post('/api/matches', (req, res) => {
         found_item_reporter_department, found_item_images, found_item_detected_objects,
         found_item_detected_categories
     ];
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error creating match:', err);
@@ -1658,10 +1853,10 @@ app.post('/api/matches', (req, res) => {
             }
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
-        res.status(201).json({ 
-            message: 'Match created successfully', 
-            matchId: id 
+
+        res.status(201).json({
+            message: 'Match created successfully',
+            matchId: id
         });
     });
 });
@@ -1701,11 +1896,11 @@ app.put('/api/matches/:id', (req, res) => {
         found_item_detected_objects,
         found_item_detected_categories
     } = req.body;
-    
+
     if (status && !['pending', 'accepted', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status. Must be: pending, accepted, rejected, or resolved' });
     }
-    
+
     const query = `
         UPDATE matches SET 
             status = COALESCE(?, status),
@@ -1741,7 +1936,7 @@ app.put('/api/matches/:id', (req, res) => {
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     `;
-    
+
     const values = [
         status, score, lost_item_title, lost_item_description, lost_item_category,
         lost_item_location, lost_item_latitude, lost_item_longitude, lost_item_date_reported,
@@ -1753,17 +1948,17 @@ app.put('/api/matches/:id', (req, res) => {
         found_item_reporter_email, found_item_reporter_department, found_item_images,
         found_item_detected_objects, found_item_detected_categories, matchId
     ];
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error updating match:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Match not found' });
         }
-        
+
         res.json({ message: 'Match updated successfully' });
     });
 });
@@ -1772,23 +1967,23 @@ app.put('/api/matches/:id', (req, res) => {
 app.patch('/api/matches/:id/status', (req, res) => {
     const matchId = req.params.id;
     const { status } = req.body;
-    
+
     if (!status || !['pending', 'accepted', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'Status must be: pending, accepted, rejected, or resolved' });
     }
-    
+
     const query = 'UPDATE matches SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-    
+
     db.query(query, [status, matchId], (err, result) => {
         if (err) {
             console.error('Error updating match status:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Match not found' });
         }
-        
+
         res.json({ message: `Match status updated to ${status} successfully` });
     });
 });
@@ -1796,24 +1991,24 @@ app.patch('/api/matches/:id/status', (req, res) => {
 // DELETE /api/matches/:id - Delete a match
 app.delete('/api/matches/:id', async (req, res) => {
     const matchId = req.params.id;
-    
+
     try {
         // First, get the match details before deleting
         const getMatchQuery = 'SELECT * FROM matches WHERE id = ?';
         const matchResults = await executeQueryWithRetry(getMatchQuery, [matchId]);
-        
+
         if (matchResults.length === 0) {
             return res.status(404).json({ error: 'Match not found' });
         }
-        
+
         const deletedMatch = matchResults[0];
-        
+
         // Delete the match
         const deleteQuery = 'DELETE FROM matches WHERE id = ?';
         await executeQueryWithRetry(deleteQuery, [matchId]);
-        
+
         // Return match details so we can trigger re-matching
-        res.json({ 
+        res.json({
             message: 'Match deleted successfully',
             deletedMatch: {
                 id: deletedMatch.id,
@@ -1831,17 +2026,17 @@ app.delete('/api/matches/:id', async (req, res) => {
 // DELETE /api/matches - Delete multiple matches
 app.delete('/api/matches', async (req, res) => {
     const { ids } = req.body;
-    
+
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Please provide an array of match IDs to delete' });
     }
-    
+
     try {
         // First, get all matches details before deleting
         const placeholders = ids.map(() => '?').join(',');
         const getMatchesQuery = `SELECT * FROM matches WHERE id IN (${placeholders})`;
         const matchResults = await executeQueryWithRetry(getMatchesQuery, ids);
-        
+
         // Store deleted matches info for re-matching
         const deletedMatches = matchResults.map(match => ({
             id: match.id,
@@ -1849,12 +2044,12 @@ app.delete('/api/matches', async (req, res) => {
             foundItemId: match.found_item_id,
             score: match.score
         }));
-        
+
         // Delete the matches
         const deleteQuery = `DELETE FROM matches WHERE id IN (${placeholders})`;
         const result = await executeQueryWithRetry(deleteQuery, ids);
-        
-        res.json({ 
+
+        res.json({
             message: `${result.affectedRows} match(es) deleted successfully`,
             deletedCount: result.affectedRows,
             deletedMatches: deletedMatches
@@ -1868,11 +2063,11 @@ app.delete('/api/matches', async (req, res) => {
 // POST /api/matches/rematch - Run matching for specific items after deletion
 app.post('/api/matches/rematch', async (req, res) => {
     const { lostItemIds, foundItemIds } = req.body;
-    
+
     if (!lostItemIds || !foundItemIds || !Array.isArray(lostItemIds) || !Array.isArray(foundItemIds)) {
         return res.status(400).json({ error: 'Please provide arrays of lost and found item IDs' });
     }
-    
+
     if (lostItemIds.length === 0 || foundItemIds.length === 0) {
         return res.json({
             success: true,
@@ -1880,18 +2075,18 @@ app.post('/api/matches/rematch', async (req, res) => {
             message: 'No items provided for re-matching'
         });
     }
-    
+
     try {
         // Fetch lost items
         const lostItemsPlaceholders = lostItemIds.map(() => '?').join(',');
         const lostItemsQuery = `SELECT * FROM items WHERE id IN (${lostItemsPlaceholders}) AND type = 'lost' AND status = 'active'`;
         const lostItems = await executeQueryWithRetry(lostItemsQuery, lostItemIds);
-        
+
         // Fetch found items
         const foundItemsPlaceholders = foundItemIds.map(() => '?').join(',');
         const foundItemsQuery = `SELECT * FROM items WHERE id IN (${foundItemsPlaceholders}) AND type = 'found' AND status = 'active'`;
         const foundItems = await executeQueryWithRetry(foundItemsQuery, foundItemIds);
-        
+
         if (lostItems.length === 0 || foundItems.length === 0) {
             return res.json({
                 success: true,
@@ -1899,25 +2094,25 @@ app.post('/api/matches/rematch', async (req, res) => {
                 message: 'No active items found for re-matching'
             });
         }
-        
+
         console.log(`Re-matching ${lostItems.length} lost items with ${foundItems.length} found items`);
-        
+
         // Run matching for these specific items
         const matchingResult = await runMatchingForItems(lostItems, foundItems);
-        
+
         res.json({
             success: matchingResult.success,
             matchesFound: matchingResult.matchesFound,
             highScoreMatches: matchingResult.highScoreMatches?.length || 0,
             message: `Found ${matchingResult.matchesFound} new potential matches`
         });
-        
+
     } catch (err) {
         console.error('Error in re-matching:', err);
-        return res.status(500).json({ 
+        return res.status(500).json({
             success: false,
             error: 'Internal server error during re-matching',
-            message: err.message 
+            message: err.message
         });
     }
 });
@@ -1928,76 +2123,76 @@ app.post('/api/matches/rematch', async (req, res) => {
 
 // GET /api/claims - Get all claims with optional filtering
 app.get('/api/claims', (req, res) => {
-    const { 
-        item_id, 
-        match_id, 
-        claimant_id, 
-        claim_type, 
-        status, 
+    const {
+        item_id,
+        match_id,
+        claimant_id,
+        claim_type,
+        status,
         google_user_id,
 
         date_from,
         date_to,
-        limit = 50, 
-        offset = 0 
+        limit = 50,
+        offset = 0
     } = req.query;
-    
+
     let query = `SELECT * FROM claims WHERE 1=1`;
     const queryParams = [];
-    
+
     // Add filters
     if (item_id) {
         query += ' AND item_id = ?';
         queryParams.push(item_id);
     }
-    
+
     if (match_id) {
         query += ' AND match_id = ?';
         queryParams.push(match_id);
     }
-    
+
     if (claimant_id) {
         query += ' AND claimant_id = ?';
         queryParams.push(claimant_id);
     }
-    
+
     if (claim_type && ['ownership', 'finder'].includes(claim_type)) {
         query += ' AND claim_type = ?';
         queryParams.push(claim_type);
     }
-    
+
     if (status && ['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (google_user_id) {
         query += ' AND google_user_id = ?';
         queryParams.push(google_user_id);
     }
-    
 
-    
+
+
     if (date_from) {
         query += ' AND created_at >= ?';
         queryParams.push(date_from);
     }
-    
+
     if (date_to) {
         query += ' AND created_at <= ?';
         queryParams.push(date_to);
     }
-    
+
     // Add ordering and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching claims:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results);
     });
 });
@@ -2018,13 +2213,13 @@ app.get('/api/claims/stats', (req, res) => {
             COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as month_claims
         FROM claims
     `;
-    
+
     db.query(statsQuery, (err, results) => {
         if (err) {
             console.error('Error fetching claim statistics:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -2033,17 +2228,17 @@ app.get('/api/claims/stats', (req, res) => {
 app.get('/api/claims/:id', (req, res) => {
     const claimId = req.params.id;
     const query = 'SELECT * FROM claims WHERE id = ?';
-    
+
     db.query(query, [claimId], (err, results) => {
         if (err) {
             console.error('Error fetching claim:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'Claim not found' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -2052,23 +2247,23 @@ app.get('/api/claims/:id', (req, res) => {
 app.get('/api/claims/claimant/:claimant_id', (req, res) => {
     const claimantId = req.params.claimant_id;
     const { status, claim_type, limit = 50, offset = 0 } = req.query;
-    
+
     let query = 'SELECT * FROM claims WHERE claimant_id = ?';
     let queryParams = [claimantId];
-    
+
     if (status && ['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (claim_type && ['ownership', 'finder'].includes(claim_type)) {
         query += ' AND claim_type = ?';
         queryParams.push(claim_type);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     executeQueryWithRetry(query, queryParams)
         .then((results) => {
             res.json(results);
@@ -2083,29 +2278,29 @@ app.get('/api/claims/claimant/:claimant_id', (req, res) => {
 app.get('/api/claims/item/:item_id', (req, res) => {
     const itemId = req.params.item_id;
     const { status, claim_type, limit = 50, offset = 0 } = req.query;
-    
+
     let query = 'SELECT * FROM claims WHERE item_id = ?';
     let queryParams = [itemId];
-    
+
     if (status && ['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (claim_type && ['ownership', 'finder'].includes(claim_type)) {
         query += ' AND claim_type = ?';
         queryParams.push(claim_type);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching claims by item:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results);
     });
 });
@@ -2114,29 +2309,29 @@ app.get('/api/claims/item/:item_id', (req, res) => {
 app.get('/api/claims/match/:match_id', (req, res) => {
     const matchId = req.params.match_id;
     const { status, claim_type, limit = 50, offset = 0 } = req.query;
-    
+
     let query = 'SELECT * FROM claims WHERE match_id = ?';
     let queryParams = [matchId];
-    
+
     if (status && ['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (claim_type && ['ownership', 'finder'].includes(claim_type)) {
         query += ' AND claim_type = ?';
         queryParams.push(claim_type);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching claims by match:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results);
     });
 });
@@ -2154,38 +2349,38 @@ app.post('/api/claims', (req, res) => {
         image,
         google_user_id
     } = req.body;
-    
+
     // Validation
     if (!claimant_id) {
         return res.status(400).json({ error: 'claimant_id is required' });
     }
-    
+
     if (!item_id && !match_id) {
         return res.status(400).json({ error: 'Either item_id or match_id is required' });
     }
-    
+
     if (claim_type && !['ownership', 'finder'].includes(claim_type)) {
         return res.status(400).json({ error: 'claim_type must be either "ownership" or "finder"' });
     }
-    
+
     if (status && !['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'status must be: pending, approved, rejected, or resolved' });
     }
-    
+
     const claimId = id || require('crypto').randomUUID();
-    
+
     const query = `
         INSERT INTO claims (
             id, item_id, match_id, claimant_id, claim_type, status, 
             proof_of_ownership, image, google_user_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
+
     const values = [
         claimId, item_id, match_id, claimant_id, claim_type, status,
         proof_of_ownership, image, google_user_id
     ];
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error creating claim:', err);
@@ -2194,11 +2389,11 @@ app.post('/api/claims', (req, res) => {
             }
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Create notification for claim submission
         try {
             console.log('Creating notification for new claim submission...');
-            
+
             // Get item title for notification
             const getItemTitleQuery = `
                 SELECT COALESCE(li.title, fi.title, 'Item') as item_title
@@ -2208,24 +2403,24 @@ app.post('/api/claims', (req, res) => {
                 LEFT JOIN items fi ON m.found_item_id = fi.id OR c.item_id = fi.id
                 WHERE c.id = ?
             `;
-            
+
             db.query(getItemTitleQuery, [claimId], (err, itemResult) => {
                 if (err) {
                     console.error('Error fetching item title for claim notification:', err);
                 } else {
                     const itemTitle = (itemResult.length > 0 && itemResult[0].item_title) ? itemResult[0].item_title : 'Item';
-                    
+
                     console.log('Creating notification for claimant:', claimant_id);
                     console.log('Item title:', itemTitle);
-                    
+
                     // Create notification for claim submission
                     const savedNotification = {
                         id: `claimSubmitted_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         type: 'claimRequest',
                         title: getNotificationTitle('pending'),
                         message: getNotificationMessage('pending', itemTitle),
-                        data: JSON.stringify({ 
-                            type: 'claimRequest', 
+                        data: JSON.stringify({
+                            type: 'claimRequest',
                             claimId: claimId,
                             status: 'pending'
                         }),
@@ -2233,15 +2428,15 @@ app.post('/api/claims', (req, res) => {
                         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                         userEmail: claimant_id // claimant_id is the email address
                     };
-                    
+
                     console.log('Saving claim submission notification to database:', savedNotification);
-                    
+
                     // Insert notification into database
                     const insertNotificationQuery = `
                         INSERT INTO notifications (id, type, title, message, data, \`read\`, created_at, user_email) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     `;
-                    
+
                     db.query(insertNotificationQuery, [
                         savedNotification.id,
                         savedNotification.type,
@@ -2263,10 +2458,10 @@ app.post('/api/claims', (req, res) => {
         } catch (notificationError) {
             console.error('❌ Error creating claim submission notification:', notificationError);
         }
-        
-        res.status(201).json({ 
-            message: 'Claim created successfully', 
-            claimId: claimId 
+
+        res.status(201).json({
+            message: 'Claim created successfully',
+            claimId: claimId
         });
     });
 });
@@ -2284,20 +2479,20 @@ app.put('/api/claims/:id', (req, res) => {
         image,
         google_user_id
     } = req.body;
-    
+
     // Validation
     if (!claimant_id) {
         return res.status(400).json({ error: 'claimant_id is required' });
     }
-    
+
     if (claim_type && !['ownership', 'finder'].includes(claim_type)) {
         return res.status(400).json({ error: 'claim_type must be either "ownership" or "finder"' });
     }
-    
+
     if (status && !['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'status must be: pending, approved, rejected, or resolved' });
     }
-    
+
     const query = `
         UPDATE claims SET 
             item_id = COALESCE(?, item_id),
@@ -2312,22 +2507,22 @@ app.put('/api/claims/:id', (req, res) => {
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     `;
-    
+
     const values = [
         item_id, match_id, claimant_id, claim_type, status,
         proof_of_ownership, image, google_user_id, claimId
     ];
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error updating claim:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Claim not found' });
         }
-        
+
         res.json({ message: 'Claim updated successfully' });
     });
 });
@@ -2336,11 +2531,11 @@ app.put('/api/claims/:id', (req, res) => {
 app.patch('/api/claims/:id/status', async (req, res) => {
     const claimId = req.params.id;
     const { status } = req.body;
-    
+
     if (!status || !['pending', 'approved', 'rejected', 'resolved'].includes(status)) {
         return res.status(400).json({ error: 'status must be: pending, approved, rejected, or resolved' });
     }
-    
+
     // First, get the full claim data including user info and item details
     const getClaimQuery = `
         SELECT c.*, m.lost_item_id, m.found_item_id, 
@@ -2355,38 +2550,38 @@ app.patch('/api/claims/:id/status', async (req, res) => {
     `;
     // First, get the claim data
     const getClaimDataQuery = 'SELECT * FROM claims WHERE id = ?';
-    
+
     db.query(getClaimDataQuery, [claimId], async (err, claimResult) => {
         if (err) {
             console.error('Error fetching claim:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (claimResult.length === 0) {
             return res.status(404).json({ error: 'Claim not found' });
         }
-        
+
         const claimData = claimResult[0];
         const matchId = claimData.match_id;
-        
+
         console.log('=== CLAIM STATUS UPDATE DEBUG ===');
         console.log('Claim ID:', claimId);
         console.log('New Status:', status);
         console.log('Claim Data:', claimData);
-        
+
         // Update the claim status
         const updateClaimQuery = 'UPDATE claims SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-        
+
         db.query(updateClaimQuery, [status, claimId], async (err, result) => {
             if (err) {
                 console.error('Error updating claim status:', err);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ error: 'Claim not found' });
             }
-            
+
             // Map claim status to match status
             let matchStatus;
             switch (status) {
@@ -2404,11 +2599,11 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                     matchStatus = 'pending';
                     break;
             }
-            
+
             // Update the related match status if match_id exists
             if (matchId) {
                 const updateMatchQuery = 'UPDATE matches SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-                
+
                 db.query(updateMatchQuery, [matchStatus, matchId], (err, matchResult) => {
                     if (err) {
                         console.error('Error updating match status:', err);
@@ -2419,11 +2614,11 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                     }
                 });
             }
-            
+
             // Send notification for claim status update
             try {
                 console.log('Sending claim status notification...');
-                
+
                 // Get user email and item title from claim data
                 const getUserEmailQuery = `
                     SELECT c.claimant_id as user_email,
@@ -2434,17 +2629,17 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                     LEFT JOIN items fi ON m.found_item_id = fi.id OR c.item_id = fi.id
                     WHERE c.id = ?
                 `;
-                
+
                 db.query(getUserEmailQuery, [claimId], (err, userResult) => {
                     if (err) {
                         console.error('Error fetching user email for claim notification:', err);
                     } else if (userResult.length > 0) {
                         const userEmail = userResult[0].user_email;
                         const itemTitle = userResult[0].item_title || 'Item';
-                        
+
                         console.log('Found user email for notification:', userEmail);
                         console.log('Item title:', itemTitle);
-                        
+
                         // Only proceed if we have a valid email
                         if (userEmail) {
                             // Since we can't import React Native notification service from server,
@@ -2454,8 +2649,8 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                                 type: 'claimRequest',
                                 title: getNotificationTitle(status),
                                 message: getNotificationMessage(status, itemTitle),
-                                data: JSON.stringify({ 
-                                    type: 'claimRequest', 
+                                data: JSON.stringify({
+                                    type: 'claimRequest',
                                     claimId: claimId,
                                     status: status
                                 }),
@@ -2463,15 +2658,15 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                                 createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                                 userEmail: userEmail
                             };
-                            
+
                             console.log('Saving notification to database:', savedNotification);
-                            
+
                             // Insert notification into database with user_email
                             const insertNotificationQuery = `
                                 INSERT INTO notifications (id, type, title, message, data, \`read\`, created_at, user_email) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             `;
-                            
+
                             db.query(insertNotificationQuery, [
                                 savedNotification.id,
                                 savedNotification.type,
@@ -2495,21 +2690,21 @@ app.patch('/api/claims/:id/status', async (req, res) => {
                         console.log('No user found for claim ID:', claimId);
                     }
                 });
-                
+
                 console.log('✅ Claim status notification processing completed');
-                
-                res.json({ 
+
+                res.json({
                     message: `Claim status updated to ${status} successfully`,
                     matchStatusUpdated: matchId ? true : false,
                     matchStatus: matchId ? matchStatus : null,
                     notificationSent: true
                 });
-                
+
             } catch (notificationError) {
                 console.error('❌ Error sending claim status notification:', notificationError);
-                
+
                 // Don't fail the request if notification fails, just log the error
-                res.json({ 
+                res.json({
                     message: `Claim status updated to ${status} successfully`,
                     matchStatusUpdated: matchId ? true : false,
                     matchStatus: matchId ? matchStatus : null,
@@ -2556,17 +2751,17 @@ function getNotificationMessage(status, itemTitle) {
 app.delete('/api/claims/:id', (req, res) => {
     const claimId = req.params.id;
     const query = 'DELETE FROM claims WHERE id = ?';
-    
+
     db.query(query, [claimId], (err, result) => {
         if (err) {
             console.error('Error deleting claim:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Claim not found' });
         }
-        
+
         res.json({ message: 'Claim deleted successfully' });
     });
 });
@@ -2574,21 +2769,21 @@ app.delete('/api/claims/:id', (req, res) => {
 // DELETE /api/claims - Delete multiple claims
 app.delete('/api/claims', (req, res) => {
     const { ids } = req.body;
-    
+
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Please provide an array of claim IDs to delete' });
     }
-    
+
     const placeholders = ids.map(() => '?').join(',');
     const query = `DELETE FROM claims WHERE id IN (${placeholders})`;
-    
+
     db.query(query, ids, (err, result) => {
         if (err) {
             console.error('Error deleting claims:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
-        res.json({ 
+
+        res.json({
             message: `${result.affectedRows} claim(s) deleted successfully`,
             deletedCount: result.affectedRows
         });
@@ -2599,61 +2794,61 @@ app.delete('/api/claims', (req, res) => {
 
 // GET /api/feedback - Get all feedback with optional filtering
 app.get('/api/feedback', (req, res) => {
-    const { 
-        user_email, 
-        type, 
-        status, 
+    const {
+        user_email,
+        type,
+        status,
         rating,
         date_from,
         date_to,
-        limit = 50, 
-        offset = 0 
+        limit = 50,
+        offset = 0
     } = req.query;
-    
+
     let query = `SELECT * FROM feedback WHERE 1=1`;
     const queryParams = [];
-    
+
     // Add filters
     if (user_email) {
         query += ' AND user_email = ?';
         queryParams.push(user_email);
     }
-    
+
     if (type && ['suggestion', 'bug', 'rating'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['pending', 'reviewed', 'addressed'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     if (rating && rating >= 1 && rating <= 5) {
         query += ' AND rating = ?';
         queryParams.push(parseInt(rating));
     }
-    
+
     if (date_from) {
         query += ' AND created_at >= ?';
         queryParams.push(date_from);
     }
-    
+
     if (date_to) {
         query += ' AND created_at <= ?';
         queryParams.push(date_to);
     }
-    
+
     // Add ordering and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching feedback:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json({ data: results });
     });
 });
@@ -2673,13 +2868,13 @@ app.get('/api/feedback/stats', (req, res) => {
             COUNT(DISTINCT user_email) as unique_users
         FROM feedback
     `;
-    
+
     db.query(query, (err, results) => {
         if (err) {
             console.error('Error fetching feedback stats:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -2688,28 +2883,28 @@ app.get('/api/feedback/stats', (req, res) => {
 app.get('/api/feedback/:id', (req, res) => {
     const feedbackId = req.params.id;
     const feedbackQuery = 'SELECT * FROM feedback WHERE id = ?';
-    
+
     db.query(feedbackQuery, [feedbackId], (err, feedbackResults) => {
         if (err) {
             console.error('Error fetching feedback:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (feedbackResults.length === 0) {
             return res.status(404).json({ error: 'Feedback not found' });
         }
-        
+
         const feedback = feedbackResults[0];
-        
+
         // Get responses for this feedback
         const responsesQuery = 'SELECT * FROM feedback_responses WHERE feedback_id = ? ORDER BY created_at ASC';
-        
+
         db.query(responsesQuery, [feedbackId], (err, responsesResults) => {
             if (err) {
                 console.error('Error fetching feedback responses:', err);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             feedback.responses = responsesResults;
             res.json(feedback);
         });
@@ -2720,45 +2915,45 @@ app.get('/api/feedback/:id', (req, res) => {
 app.get('/api/feedback/user/:email', (req, res) => {
     const userEmail = req.params.email;
     const { type, status, limit = 50, offset = 0 } = req.query;
-    
+
     let query = 'SELECT * FROM feedback WHERE user_email = ?';
     let queryParams = [userEmail];
-    
+
     // Add optional filters
     if (type && ['suggestion', 'bug', 'rating'].includes(type)) {
         query += ' AND type = ?';
         queryParams.push(type);
     }
-    
+
     if (status && ['pending', 'reviewed', 'addressed'].includes(status)) {
         query += ' AND status = ?';
         queryParams.push(status);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     queryParams.push(parseInt(limit), parseInt(offset));
-    
+
     db.query(query, queryParams, (err, feedbackResults) => {
         if (err) {
             console.error('Error fetching feedback by user:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (feedbackResults.length === 0) {
             return res.json({ data: [] });
         }
-        
+
         // Get responses for each feedback
         const feedbackIds = feedbackResults.map(f => f.id);
         const placeholders = feedbackIds.map(() => '?').join(',');
         const responsesQuery = `SELECT * FROM feedback_responses WHERE feedback_id IN (${placeholders}) ORDER BY feedback_id, created_at ASC`;
-        
+
         db.query(responsesQuery, feedbackIds, (err, responsesResults) => {
             if (err) {
                 console.error('Error fetching feedback responses:', err);
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             // Group responses by feedback_id
             const responsesByFeedback = {};
             responsesResults.forEach(response => {
@@ -2767,12 +2962,12 @@ app.get('/api/feedback/user/:email', (req, res) => {
                 }
                 responsesByFeedback[response.feedback_id].push(response);
             });
-            
+
             // Add responses to each feedback
             feedbackResults.forEach(feedback => {
                 feedback.responses = responsesByFeedback[feedback.id] || [];
             });
-            
+
             res.json({ data: feedbackResults });
         });
     });
@@ -2790,46 +2985,46 @@ app.post('/api/feedback', (req, res) => {
         user_name,
         user_photo_url
     } = req.body;
-    
+
     // Set default status to 'pending' if not provided or empty
     const finalStatus = (status && status.trim() !== '') ? status : 'pending';
-    
+
     // Validate required fields
     if (!id || !user_email || !type || !text) {
-        return res.status(400).json({ 
-            error: 'Missing required fields: id, user_email, type, text' 
+        return res.status(400).json({
+            error: 'Missing required fields: id, user_email, type, text'
         });
     }
-    
+
     // Validate enum values
     if (!['suggestion', 'bug', 'rating'].includes(type)) {
         return res.status(400).json({ error: 'Type must be one of: suggestion, bug, rating' });
     }
-    
+
     if (!['pending', 'reviewed', 'addressed'].includes(finalStatus)) {
         return res.status(400).json({ error: 'Status must be one of: pending, reviewed, addressed' });
     }
-    
+
     // Validate rating if provided
     if (rating !== null && rating !== undefined) {
         if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
             return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
         }
     }
-    
+
     // For rating type, rating is required
     if (type === 'rating' && (rating === null || rating === undefined)) {
         return res.status(400).json({ error: 'Rating is required when type is "rating"' });
     }
-    
+
     const query = `INSERT INTO feedback (
         id, user_email, type, rating, text, status, user_name, user_photo_url
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    
+
     const values = [
         id, user_email, type, rating, text, finalStatus, user_name, user_photo_url
     ];
-    
+
     db.query(query, values, async (err, result) => {
         if (err) {
             console.error('Error creating feedback:', err);
@@ -2838,7 +3033,7 @@ app.post('/api/feedback', (req, res) => {
             }
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         // Trigger feedback notification for submission
         try {
             const feedbackData = {
@@ -2850,7 +3045,7 @@ app.post('/api/feedback', (req, res) => {
                 status: finalStatus,
                 subject: `${type.charAt(0).toUpperCase() + type.slice(1)} Feedback`
             };
-            
+
             // Import and call notification function (dynamic import to avoid circular dependency)
             const { sendFeedbackNotification } = require('../services/notificationService');
             await sendFeedbackNotification(feedbackData, 'submitted');
@@ -2858,10 +3053,10 @@ app.post('/api/feedback', (req, res) => {
             console.error('Error sending feedback notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
-        res.status(201).json({ 
-            message: 'Feedback created successfully', 
-            feedbackId: id 
+
+        res.status(201).json({
+            message: 'Feedback created successfully',
+            feedbackId: id
         });
     });
 });
@@ -2878,51 +3073,51 @@ app.put('/api/feedback/:id', (req, res) => {
         user_name,
         user_photo_url
     } = req.body;
-    
+
     // Validate required fields
     if (!user_email || !type || !text) {
-        return res.status(400).json({ 
-            error: 'Missing required fields: user_email, type, text' 
+        return res.status(400).json({
+            error: 'Missing required fields: user_email, type, text'
         });
     }
-    
+
     // Validate enum values
     if (!['suggestion', 'bug', 'rating'].includes(type)) {
         return res.status(400).json({ error: 'Type must be one of: suggestion, bug, rating' });
     }
-    
+
     if (status && !['pending', 'reviewed', 'addressed'].includes(status)) {
         return res.status(400).json({ error: 'Status must be one of: pending, reviewed, addressed' });
     }
-    
+
     // Validate rating if provided
     if (rating !== null && rating !== undefined) {
         if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
             return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
         }
     }
-    
+
     const query = `UPDATE feedback SET 
         user_email = ?, type = ?, rating = ?, text = ?, status = ?, user_name = ?, 
         user_photo_url = ?,
         updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`;
-    
+
     const values = [
         user_email, type, rating, text, status, user_name, user_photo_url,
         feedbackId
     ];
-    
+
     db.query(query, values, async (err, result) => {
         if (err) {
             console.error('Error updating feedback:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Feedback not found' });
         }
-        
+
         // Trigger feedback notification for status update
         try {
             const feedbackData = {
@@ -2934,12 +3129,12 @@ app.put('/api/feedback/:id', (req, res) => {
                 status,
                 subject: `${type.charAt(0).toUpperCase() + type.slice(1)} Feedback`
             };
-            
+
             // Determine notification action based on status
             let action = 'updated';
             if (status === 'reviewed') action = 'under_review';
             if (status === 'addressed') action = 'processed';
-            
+
             // Import and call notification function
             const { sendFeedbackNotification } = require('../services/notificationService');
             await sendFeedbackNotification(feedbackData, action);
@@ -2947,7 +3142,7 @@ app.put('/api/feedback/:id', (req, res) => {
             console.error('Error sending feedback update notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
+
         res.json({ message: 'Feedback updated successfully' });
     });
 });
@@ -2956,35 +3151,35 @@ app.put('/api/feedback/:id', (req, res) => {
 app.patch('/api/feedback/:id/status', (req, res) => {
     const feedbackId = req.params.id;
     const { status } = req.body;
-    
+
     if (!status || !['pending', 'reviewed', 'addressed'].includes(status)) {
         return res.status(400).json({ error: 'Status must be one of: pending, reviewed, addressed' });
     }
-    
+
     const query = 'UPDATE feedback SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
-    
+
     db.query(query, [status, feedbackId], async (err, result) => {
         if (err) {
             console.error('Error updating feedback status:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Feedback not found' });
         }
-        
+
         // Get feedback data for notification
         try {
             const feedbackQuery = 'SELECT * FROM feedback WHERE id = ?';
             db.query(feedbackQuery, [feedbackId], async (fetchErr, feedbackResults) => {
                 if (!fetchErr && feedbackResults.length > 0) {
                     const feedbackData = feedbackResults[0];
-                    
+
                     // Determine notification action based on status
                     let action = 'updated';
                     if (status === 'reviewed') action = 'under_review';
                     if (status === 'addressed') action = 'processed';
-                    
+
                     // Import and call notification function
                     const { sendFeedbackNotification } = require('../services/notificationService');
                     await sendFeedbackNotification(feedbackData, action);
@@ -2994,8 +3189,8 @@ app.patch('/api/feedback/:id/status', (req, res) => {
             console.error('Error sending feedback status notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
-        res.json({ 
+
+        res.json({
             message: `Feedback status updated to ${status} successfully`
         });
     });
@@ -3005,17 +3200,17 @@ app.patch('/api/feedback/:id/status', (req, res) => {
 app.delete('/api/feedback/:id', (req, res) => {
     const feedbackId = req.params.id;
     const query = 'DELETE FROM feedback WHERE id = ?';
-    
+
     db.query(query, [feedbackId], (err, result) => {
         if (err) {
             console.error('Error deleting feedback:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Feedback not found' });
         }
-        
+
         res.json({ message: 'Feedback deleted successfully' });
     });
 });
@@ -3023,21 +3218,21 @@ app.delete('/api/feedback/:id', (req, res) => {
 // DELETE /api/feedback - Delete multiple feedback entries
 app.delete('/api/feedback', (req, res) => {
     const { ids } = req.body;
-    
+
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: 'Please provide an array of feedback IDs to delete' });
     }
-    
+
     const placeholders = ids.map(() => '?').join(',');
     const query = `DELETE FROM feedback WHERE id IN (${placeholders})`;
-    
+
     db.query(query, ids, (err, result) => {
         if (err) {
             console.error('Error deleting feedback entries:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
-        res.json({ 
+
+        res.json({
             message: `${result.affectedRows} feedback entry(ies) deleted successfully`,
             deletedCount: result.affectedRows
         });
@@ -3050,18 +3245,18 @@ app.delete('/api/feedback', (req, res) => {
 app.get('/api/feedback/:feedbackId/responses', (req, res) => {
     const feedbackId = req.params.feedbackId;
     const { limit = 50, offset = 0 } = req.query;
-    
+
     const query = `SELECT * FROM feedback_responses 
                    WHERE feedback_id = ? 
                    ORDER BY created_at ASC 
                    LIMIT ? OFFSET ?`;
-    
+
     db.query(query, [feedbackId, parseInt(limit), parseInt(offset)], (err, results) => {
         if (err) {
             console.error('Error fetching feedback responses:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         res.json({ data: results });
     });
 });
@@ -3075,34 +3270,34 @@ app.post('/api/feedback/:feedbackId/responses', (req, res) => {
         admin_name,
         response_text
     } = req.body;
-    
+
     // Validate required fields
     if (!id || !admin_email || !response_text) {
-        return res.status(400).json({ 
-            error: 'Missing required fields: id, admin_email, response_text' 
+        return res.status(400).json({
+            error: 'Missing required fields: id, admin_email, response_text'
         });
     }
-    
+
     // First check if the feedback exists
     const checkFeedbackQuery = 'SELECT id FROM feedback WHERE id = ?';
-    
+
     db.query(checkFeedbackQuery, [feedbackId], (err, feedbackResults) => {
         if (err) {
             console.error('Error checking feedback existence:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (feedbackResults.length === 0) {
             return res.status(404).json({ error: 'Feedback not found' });
         }
-        
+
         // Insert the response
         const insertQuery = `INSERT INTO feedback_responses (
             id, feedback_id, admin_email, admin_name, response_text
         ) VALUES (?, ?, ?, ?, ?)`;
-        
+
         const values = [id, feedbackId, admin_email, admin_name, response_text];
-        
+
         db.query(insertQuery, values, async (err, result) => {
             if (err) {
                 console.error('Error creating feedback response:', err);
@@ -3111,7 +3306,7 @@ app.post('/api/feedback/:feedbackId/responses', (req, res) => {
                 }
                 return res.status(500).json({ error: 'Internal server error' });
             }
-            
+
             // Send push notification to the user who submitted the feedback
             try {
                 // Get the original feedback data for the notification
@@ -3129,7 +3324,7 @@ app.post('/api/feedback/:feedbackId/responses', (req, res) => {
                             response_text,
                             created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
                         };
-                        
+
                         try {
                             // Import notification service dynamically
                             const notificationService = await import('../services/notificationService.js');
@@ -3147,10 +3342,10 @@ app.post('/api/feedback/:feedbackId/responses', (req, res) => {
                 console.error('Error in notification process:', notificationError);
                 // Don't fail the response creation if notification fails
             }
-            
-            res.status(201).json({ 
-                message: 'Feedback response created successfully', 
-                responseId: id 
+
+            res.status(201).json({
+                message: 'Feedback response created successfully',
+                responseId: id
             });
         });
     });
@@ -3160,17 +3355,17 @@ app.post('/api/feedback/:feedbackId/responses', (req, res) => {
 app.get('/api/feedback-responses/:id', (req, res) => {
     const responseId = req.params.id;
     const query = 'SELECT * FROM feedback_responses WHERE id = ?';
-    
+
     db.query(query, [responseId], (err, results) => {
         if (err) {
             console.error('Error fetching feedback response:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (results.length === 0) {
             return res.status(404).json({ error: 'Feedback response not found' });
         }
-        
+
         res.json(results[0]);
     });
 });
@@ -3183,30 +3378,30 @@ app.put('/api/feedback-responses/:id', (req, res) => {
         admin_name,
         response_text
     } = req.body;
-    
+
     // Validate required fields
     if (!admin_email || !response_text) {
-        return res.status(400).json({ 
-            error: 'Missing required fields: admin_email, response_text' 
+        return res.status(400).json({
+            error: 'Missing required fields: admin_email, response_text'
         });
     }
-    
+
     const query = `UPDATE feedback_responses SET 
                    admin_email = ?, admin_name = ?, response_text = ?
                    WHERE id = ?`;
-    
+
     const values = [admin_email, admin_name, response_text, responseId];
-    
+
     db.query(query, values, (err, result) => {
         if (err) {
             console.error('Error updating feedback response:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Feedback response not found' });
         }
-        
+
         res.json({ message: 'Feedback response updated successfully' });
     });
 });
@@ -3215,17 +3410,17 @@ app.put('/api/feedback-responses/:id', (req, res) => {
 app.delete('/api/feedback-responses/:id', (req, res) => {
     const responseId = req.params.id;
     const query = 'DELETE FROM feedback_responses WHERE id = ?';
-    
+
     db.query(query, [responseId], (err, result) => {
         if (err) {
             console.error('Error deleting feedback response:', err);
             return res.status(500).json({ error: 'Internal server error' });
         }
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Feedback response not found' });
         }
-        
+
         res.json({ message: 'Feedback response deleted successfully' });
     });
 });
@@ -3237,7 +3432,7 @@ app.get('/api/support-tickets', async (req, res) => {
     try {
         const { page = 1, limit = 20, status, category, priority, user_email } = req.query;
         const offset = (page - 1) * limit;
-        
+
         let query = `
             SELECT 
                 id, user_id, user_email, user_name, user_department,
@@ -3249,7 +3444,7 @@ app.get('/api/support-tickets', async (req, res) => {
             WHERE 1=1
         `;
         const queryParams = [];
-        
+
         if (status) {
             query += ' AND status = ?';
             queryParams.push(status);
@@ -3266,16 +3461,16 @@ app.get('/api/support-tickets', async (req, res) => {
             query += ' AND user_email = ?';
             queryParams.push(user_email);
         }
-        
+
         query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
         queryParams.push(parseInt(limit), parseInt(offset));
-        
+
         const tickets = await executeQueryWithRetry(query, queryParams);
-        
+
         // Get total count for pagination
         let countQuery = 'SELECT COUNT(*) as total FROM support_tickets WHERE 1=1';
         const countParams = [];
-        
+
         if (status) {
             countQuery += ' AND status = ?';
             countParams.push(status);
@@ -3292,10 +3487,10 @@ app.get('/api/support-tickets', async (req, res) => {
             countQuery += ' AND user_email = ?';
             countParams.push(user_email);
         }
-        
+
         const countResult = await executeQueryWithRetry(countQuery, countParams);
         const total = countResult[0].total;
-        
+
         res.json({
             tickets,
             pagination: {
@@ -3315,7 +3510,7 @@ app.get('/api/support-tickets', async (req, res) => {
 app.get('/api/support-tickets/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         // Get ticket details
         const ticketQuery = `
             SELECT 
@@ -3327,15 +3522,15 @@ app.get('/api/support-tickets/:id', async (req, res) => {
             FROM support_tickets 
             WHERE id = ?
         `;
-        
+
         const tickets = await executeQueryWithRetry(ticketQuery, [id]);
-        
+
         if (tickets.length === 0) {
             return res.status(404).json({ error: 'Support ticket not found' });
         }
-        
+
         const ticket = tickets[0];
-        
+
         // Get responses
         const responsesQuery = `
             SELECT 
@@ -3346,9 +3541,9 @@ app.get('/api/support-tickets/:id', async (req, res) => {
             WHERE ticket_id = ?
             ORDER BY created_at ASC
         `;
-        
+
         const responses = await executeQueryWithRetry(responsesQuery, [id]);
-        
+
         res.json({
             ticket,
             responses
@@ -3374,17 +3569,17 @@ app.post('/api/support-tickets', async (req, res) => {
             attachment_url,
             attachment_filename
         } = req.body;
-        
+
         // Validate required fields
         if (!user_email || !subject || !description) {
-            return res.status(400).json({ 
-                error: 'Missing required fields: user_email, subject, and description are required' 
+            return res.status(400).json({
+                error: 'Missing required fields: user_email, subject, and description are required'
             });
         }
-        
+
         // Generate unique ticket ID
         const ticketId = `TICKET_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-        
+
         const query = `
             INSERT INTO support_tickets (
                 id, user_id, user_email, user_name, user_department,
@@ -3392,7 +3587,7 @@ app.post('/api/support-tickets', async (req, res) => {
                 attachment_url, attachment_filename, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, NOW(), NOW())
         `;
-        
+
         const values = [
             ticketId,
             user_id,
@@ -3406,19 +3601,19 @@ app.post('/api/support-tickets', async (req, res) => {
             attachment_url,
             attachment_filename
         ];
-        
+
         await executeQueryWithRetry(query, values);
-        
+
         // Return the created ticket
         const newTicket = await executeQueryWithRetry(
             'SELECT * FROM support_tickets WHERE id = ?',
             [ticketId]
         );
-        
+
         // Trigger support ticket notification for creation
         try {
             const ticketData = newTicket[0];
-            
+
             // Import and call notification function
             const { sendSupportTicketNotification } = require('../services/notificationService');
             await sendSupportTicketNotification(ticketData, 'created');
@@ -3426,7 +3621,7 @@ app.post('/api/support-tickets', async (req, res) => {
             console.error('Error sending support ticket creation notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
+
         res.status(201).json({
             message: 'Support ticket created successfully',
             ticket: newTicket[0]
@@ -3453,21 +3648,21 @@ app.put('/api/support-tickets/:id', async (req, res) => {
             attachment_url,
             attachment_filename
         } = req.body;
-        
+
         // Check if ticket exists
         const existingTicket = await executeQueryWithRetry(
             'SELECT * FROM support_tickets WHERE id = ?',
             [id]
         );
-        
+
         if (existingTicket.length === 0) {
             return res.status(404).json({ error: 'Support ticket not found' });
         }
-        
+
         // Build dynamic update query
         const updateFields = [];
         const updateValues = [];
-        
+
         if (subject !== undefined) {
             updateFields.push('subject = ?');
             updateValues.push(subject);
@@ -3487,7 +3682,7 @@ app.put('/api/support-tickets/:id', async (req, res) => {
         if (status !== undefined) {
             updateFields.push('status = ?');
             updateValues.push(status);
-            
+
             // If status is resolved or closed, set resolved_at and resolved_by
             if ((status === 'resolved' || status === 'closed') && resolved_by) {
                 updateFields.push('resolved_at = NOW()');
@@ -3511,29 +3706,29 @@ app.put('/api/support-tickets/:id', async (req, res) => {
             updateFields.push('attachment_filename = ?');
             updateValues.push(attachment_filename);
         }
-        
+
         if (updateFields.length === 0) {
             return res.status(400).json({ error: 'No fields to update' });
         }
-        
+
         updateFields.push('updated_at = NOW()');
         updateValues.push(id);
-        
+
         const query = `UPDATE support_tickets SET ${updateFields.join(', ')} WHERE id = ?`;
-        
+
         await executeQueryWithRetry(query, updateValues);
-        
+
         // Return updated ticket
         const updatedTicket = await executeQueryWithRetry(
             'SELECT * FROM support_tickets WHERE id = ?',
             [id]
         );
-        
+
         // Trigger support ticket notification for updates
         try {
             const ticketData = updatedTicket[0];
             const originalStatus = existingTicket[0].status;
-            
+
             // Determine notification action based on status change
             let action = 'updated';
             if (status && status !== originalStatus) {
@@ -3543,7 +3738,7 @@ app.put('/api/support-tickets/:id', async (req, res) => {
                     action = 'updated';
                 }
             }
-            
+
             // Import and call notification function
             const { sendSupportTicketNotification } = require('../services/notificationService');
             await sendSupportTicketNotification(ticketData, action);
@@ -3551,7 +3746,7 @@ app.put('/api/support-tickets/:id', async (req, res) => {
             console.error('Error sending support ticket update notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
+
         res.json({
             message: 'Support ticket updated successfully',
             ticket: updatedTicket[0]
@@ -3566,23 +3761,23 @@ app.put('/api/support-tickets/:id', async (req, res) => {
 app.delete('/api/support-tickets/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         // First delete all responses
         await executeQueryWithRetry(
             'DELETE FROM support_ticket_responses WHERE ticket_id = ?',
             [id]
         );
-        
+
         // Then delete the ticket
         const result = await executeQueryWithRetry(
             'DELETE FROM support_tickets WHERE id = ?',
             [id]
         );
-        
+
         if (result.affectedRows === 0) {
             return res.status(404).json({ error: 'Support ticket not found' });
         }
-        
+
         res.json({ message: 'Support ticket deleted successfully' });
     } catch (error) {
         console.error('Error deleting support ticket:', error);
@@ -3596,17 +3791,17 @@ app.delete('/api/support-tickets/:id', async (req, res) => {
 app.get('/api/support-tickets/:ticketId/responses', async (req, res) => {
     try {
         const { ticketId } = req.params;
-        
+
         // Check if ticket exists
         const ticket = await executeQueryWithRetry(
             'SELECT id FROM support_tickets WHERE id = ?',
             [ticketId]
         );
-        
+
         if (ticket.length === 0) {
             return res.status(404).json({ error: 'Support ticket not found' });
         }
-        
+
         const query = `
             SELECT 
                 id, responder_email, responder_name, responder_type,
@@ -3616,9 +3811,9 @@ app.get('/api/support-tickets/:ticketId/responses', async (req, res) => {
             WHERE ticket_id = ?
             ORDER BY created_at ASC
         `;
-        
+
         const responses = await executeQueryWithRetry(query, [ticketId]);
-        
+
         res.json({ responses });
     } catch (error) {
         console.error('Error fetching ticket responses:', error);
@@ -3639,34 +3834,34 @@ app.post('/api/support-tickets/:ticketId/responses', async (req, res) => {
             attachment_filename,
             is_internal = false
         } = req.body;
-        
+
         // Validate required fields
         if (!responder_email || !message) {
-            return res.status(400).json({ 
-                error: 'Missing required fields: responder_email and message are required' 
+            return res.status(400).json({
+                error: 'Missing required fields: responder_email and message are required'
             });
         }
-        
+
         // Check if ticket exists
         const ticket = await executeQueryWithRetry(
             'SELECT id FROM support_tickets WHERE id = ?',
             [ticketId]
         );
-        
+
         if (ticket.length === 0) {
             return res.status(404).json({ error: 'Support ticket not found' });
         }
-        
+
         // Generate unique response ID
         const responseId = `RESPONSE_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-        
+
         const insertQuery = `
             INSERT INTO support_ticket_responses (
                 id, ticket_id, responder_email, responder_name, responder_type,
                 message, attachment_url, attachment_filename, is_internal, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `;
-        
+
         const insertValues = [
             responseId,
             ticketId,
@@ -3678,9 +3873,9 @@ app.post('/api/support-tickets/:ticketId/responses', async (req, res) => {
             attachment_filename,
             is_internal
         ];
-        
+
         await executeQueryWithRetry(insertQuery, insertValues);
-        
+
         // Update ticket's last_response_at and response_count
         const updateTicketQuery = `
             UPDATE support_tickets 
@@ -3690,15 +3885,15 @@ app.post('/api/support-tickets/:ticketId/responses', async (req, res) => {
                 updated_at = NOW()
             WHERE id = ?
         `;
-        
+
         await executeQueryWithRetry(updateTicketQuery, [ticketId]);
-        
+
         // Return the created response
         const newResponse = await executeQueryWithRetry(
             'SELECT * FROM support_ticket_responses WHERE id = ?',
             [responseId]
         );
-        
+
         // Trigger support ticket response notification
         try {
             // Get ticket data for notification
@@ -3706,7 +3901,7 @@ app.post('/api/support-tickets/:ticketId/responses', async (req, res) => {
                 'SELECT * FROM support_tickets WHERE id = ?',
                 [ticketId]
             );
-            
+
             if (ticketData.length > 0) {
                 // Import and call notification function
                 const { sendSupportTicketNotification } = require('../services/notificationService');
@@ -3716,7 +3911,7 @@ app.post('/api/support-tickets/:ticketId/responses', async (req, res) => {
             console.error('Error sending support ticket response notification:', notificationError);
             // Don't fail the request if notification fails
         }
-        
+
         res.status(201).json({
             message: 'Response added successfully',
             response: newResponse[0]
@@ -3737,21 +3932,21 @@ app.put('/api/support-ticket-responses/:id', async (req, res) => {
             attachment_filename,
             is_internal
         } = req.body;
-        
+
         // Check if response exists
         const existingResponse = await executeQueryWithRetry(
             'SELECT * FROM support_ticket_responses WHERE id = ?',
             [id]
         );
-        
+
         if (existingResponse.length === 0) {
             return res.status(404).json({ error: 'Response not found' });
         }
-        
+
         // Build dynamic update query
         const updateFields = [];
         const updateValues = [];
-        
+
         if (message !== undefined) {
             updateFields.push('message = ?');
             updateValues.push(message);
@@ -3768,23 +3963,23 @@ app.put('/api/support-ticket-responses/:id', async (req, res) => {
             updateFields.push('is_internal = ?');
             updateValues.push(is_internal);
         }
-        
+
         if (updateFields.length === 0) {
             return res.status(400).json({ error: 'No fields to update' });
         }
-        
+
         updateValues.push(id);
-        
+
         const query = `UPDATE support_ticket_responses SET ${updateFields.join(', ')} WHERE id = ?`;
-        
+
         await executeQueryWithRetry(query, updateValues);
-        
+
         // Return updated response
         const updatedResponse = await executeQueryWithRetry(
             'SELECT * FROM support_ticket_responses WHERE id = ?',
             [id]
         );
-        
+
         res.json({
             message: 'Response updated successfully',
             response: updatedResponse[0]
@@ -3799,31 +3994,31 @@ app.put('/api/support-ticket-responses/:id', async (req, res) => {
 app.delete('/api/support-ticket-responses/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         // Get response details before deleting
         const response = await executeQueryWithRetry(
             'SELECT ticket_id FROM support_ticket_responses WHERE id = ?',
             [id]
         );
-        
+
         if (response.length === 0) {
             return res.status(404).json({ error: 'Response not found' });
         }
-        
+
         const ticketId = response[0].ticket_id;
-        
+
         // Delete the response
         const deleteResult = await executeQueryWithRetry(
             'DELETE FROM support_ticket_responses WHERE id = ?',
             [id]
         );
-        
+
         // Update ticket's response_count
         await executeQueryWithRetry(
             'UPDATE support_tickets SET response_count = response_count - 1, updated_at = NOW() WHERE id = ?',
             [ticketId]
         );
-        
+
         res.json({ message: 'Response deleted successfully' });
     } catch (error) {
         console.error('Error deleting response:', error);
@@ -3838,28 +4033,28 @@ app.get('/api/notifications/user/:email', async (req, res) => {
     try {
         const { email } = req.params;
         const { limit = 50, offset = 0, unread_only = false } = req.query;
-        
+
         let query = `
             SELECT id, type, title, message, data, \`read\`, created_at, user_email
             FROM notifications 
             WHERE user_email = ?
         `;
-        
+
         if (unread_only === 'true') {
             query += ' AND `read` = FALSE';
         }
-        
+
         query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-        
+
         const notifications = await executeQueryWithRetry(query, [email, parseInt(limit), parseInt(offset)]);
-        
+
         // Parse JSON data field for each notification
         const processedNotifications = notifications.map(notification => ({
             ...notification,
             data: notification.data ? JSON.parse(notification.data) : null,
             read: Boolean(notification.read)
         }));
-        
+
         res.json(processedNotifications);
     } catch (error) {
         console.error('Error fetching user notifications:', error);
@@ -3871,17 +4066,17 @@ app.get('/api/notifications/user/:email', async (req, res) => {
 app.get('/api/notifications/user/:email/count', async (req, res) => {
     try {
         const { email } = req.params;
-        
+
         const [totalResult] = await executeQueryWithRetry(
             'SELECT COUNT(*) as total FROM notifications WHERE user_email = ?',
             [email]
         );
-        
+
         const [unreadResult] = await executeQueryWithRetry(
             'SELECT COUNT(*) as unread FROM notifications WHERE user_email = ? AND `read` = FALSE',
             [email]
         );
-        
+
         res.json({
             total: totalResult.total,
             unread: unreadResult.unread
@@ -3896,12 +4091,12 @@ app.get('/api/notifications/user/:email/count', async (req, res) => {
 app.patch('/api/notifications/:id/read', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         await executeQueryWithRetry(
             'UPDATE notifications SET `read` = TRUE WHERE id = ?',
             [id]
         );
-        
+
         res.json({ message: 'Notification marked as read' });
     } catch (error) {
         console.error('Error marking notification as read:', error);
@@ -3913,13 +4108,13 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 app.patch('/api/notifications/user/:email/read-all', async (req, res) => {
     try {
         const { email } = req.params;
-        
+
         const result = await executeQueryWithRetry(
             'UPDATE notifications SET `read` = TRUE WHERE user_email = ? AND `read` = FALSE',
             [email]
         );
-        
-        res.json({ 
+
+        res.json({
             message: 'All notifications marked as read',
             updated: result.affectedRows
         });
@@ -3933,12 +4128,12 @@ app.patch('/api/notifications/user/:email/read-all', async (req, res) => {
 app.delete('/api/notifications/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         await executeQueryWithRetry(
             'DELETE FROM notifications WHERE id = ?',
             [id]
         );
-        
+
         res.json({ message: 'Notification deleted successfully' });
     } catch (error) {
         console.error('Error deleting notification:', error);
@@ -3950,13 +4145,13 @@ app.delete('/api/notifications/:id', async (req, res) => {
 app.delete('/api/notifications/user/:email', async (req, res) => {
     try {
         const { email } = req.params;
-        
+
         const result = await executeQueryWithRetry(
             'DELETE FROM notifications WHERE user_email = ?',
             [email]
         );
-        
-        res.json({ 
+
+        res.json({
             message: 'All notifications deleted successfully',
             deleted: result.affectedRows
         });
@@ -3970,20 +4165,20 @@ app.delete('/api/notifications/user/:email', async (req, res) => {
 app.get('/api/notifications/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const notifications = await executeQueryWithRetry(
             'SELECT id, type, title, message, data, `read`, created_at, user_email FROM notifications WHERE id = ?',
             [id]
         );
-        
+
         if (notifications.length === 0) {
             return res.status(404).json({ error: 'Notification not found' });
         }
-        
+
         const notification = notifications[0];
         notification.data = notification.data ? JSON.parse(notification.data) : null;
         notification.read = Boolean(notification.read);
-        
+
         res.json(notification);
     } catch (error) {
         console.error('Error fetching notification:', error);
@@ -3995,21 +4190,21 @@ app.get('/api/notifications/:id', async (req, res) => {
 app.post('/api/test/notification', async (req, res) => {
     try {
         const { userEmail, title, message } = req.body;
-        
+
         if (!userEmail || !title || !message) {
             return res.status(400).json({ error: 'Missing required fields: userEmail, title, message' });
         }
-        
+
         const notificationId = `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         const query = `
             INSERT INTO notifications (id, type, title, message, data, \`read\`, created_at, user_email)
             VALUES (?, 'test', ?, ?, '{}', false, NOW(), ?)
         `;
-        
+
         await executeQueryWithRetry(query, [notificationId, title, message, userEmail]);
-        
-        res.status(201).json({ 
+
+        res.status(201).json({
             message: 'Test notification created successfully',
             notificationId: notificationId
         });
@@ -4033,16 +4228,52 @@ async function testDatabaseConnection() {
     }
 }
 
+// Ensure fake_report_count column exists
+async function ensureFakeReportCountColumn() {
+    try {
+        console.log('Checking for fake_report_count column...');
+
+        // Check if column exists
+        const checkQuery = `
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'users' 
+            AND COLUMN_NAME = 'fake_report_count'
+        `;
+
+        const result = await executeQueryWithRetry(checkQuery);
+
+        if (result.length === 0) {
+            console.log('Creating fake_report_count column...');
+            const alterQuery = `
+                ALTER TABLE users 
+                ADD COLUMN fake_report_count INT DEFAULT 0
+            `;
+            await executeQueryWithRetry(alterQuery);
+            console.log('✅ fake_report_count column created successfully');
+        } else {
+            console.log('✅ fake_report_count column already exists');
+        }
+    } catch (error) {
+        console.error('Error ensuring fake_report_count column:', error.message);
+        // Don't fail server startup if this fails
+    }
+}
+
 // Start the server
 app.listen(port, '0.0.0.0', async () => {
     console.log(`Server is running on http://localhost:${port}`);
-    
+
     // Test database connection
     const dbConnected = await testDatabaseConnection();
     if (!dbConnected) {
         console.log('⚠️  Server started but database is not accessible');
+    } else {
+        // Ensure fake_report_count column exists
+        await ensureFakeReportCountColumn();
     }
-    
+
     console.log('Available API endpoints:');
     console.log('\n--- ITEM ENDPOINTS ---');
     console.log('  GET    /api/items          - Get all items with filtering');
@@ -4125,5 +4356,21 @@ app.listen(port, '0.0.0.0', async () => {
     console.log('  DELETE /api/notifications/:id - Delete notification');
     console.log('  DELETE /api/notifications/user/:email - Delete all notifications');
     console.log('  POST   /api/test/notification - Create test notification');
+});
+
+// Global error handler - catches all uncaught errors
+app.use((err, req, res, next) => {
+    console.error('=== GLOBAL ERROR HANDLER ===');
+    console.error('Error:', err.message);
+    console.error('Stack:', err.stack);
+    console.error('Request Path:', req.path);
+    console.error('Request Method:', req.method);
+    console.error('Request Body:', JSON.stringify(req.body));
+
+    res.status(500).json({
+        error: 'Internal server error',
+        message: err.message,
+        path: req.path
+    });
 });
 

@@ -8,7 +8,7 @@ import { initializeNotifications } from './src/shared/services/notificationServi
 import { NotificationProvider } from './src/shared/context/NotificationContext';
 import { SuspensionProvider } from './src/contexts/SuspensionContext';
 import { InternetConnectionProvider } from './src/context/InternetConnectionContext';
-import { getUserByEmail, updateUserStatus } from './src/config/apiConfig';
+import { getUserByEmail, updateUserStatus, API_CONFIG } from './src/config/apiConfig';
 
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/components/common/layout/SplashScreen';
@@ -26,7 +26,7 @@ import auth from '@react-native-firebase/auth';
 
 // Firebase configuration - this ensures Firebase is properly configured
 const firebaseConfig = {
-  apiKey: "AIzaSyDItNJdP68APD8wBQmlxO0J-tXo5_GmgJU",
+  apiKey: process.env.FIREBASE_API_KEY || 'REPLACE_WITH_FIREBASE_API_KEY',
   authDomain: "lost-and-found-31669.firebaseapp.com",
   projectId: "lost-and-found-31669",
   storageBucket: "lost-and-found-31669.firebasestorage.app",
@@ -130,7 +130,7 @@ export default function App() {
           const existingUser = await getUserByEmail(user.email);
           if (existingUser) {
             // Send heartbeat to server
-            const response = await fetch(`https://api.lostfound.systems/api/users/${existingUser.id}/heartbeat`, {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/${existingUser.id}/heartbeat`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',

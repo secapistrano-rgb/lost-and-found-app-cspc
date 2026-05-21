@@ -45,6 +45,7 @@ const UserProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [showDeleteButton, setShowDeleteButton] = useState(false);
   const [deleteCountdown, setDeleteCountdown] = useState(5);
+  const [fakeReportCount, setFakeReportCount] = useState(0);
   const [editedUser, setEditedUser] = useState({
     name: '',
     email: '',
@@ -59,6 +60,20 @@ const UserProfileScreen = ({ navigation }) => {
   useEffect(() => {
     loadUserData();
   }, []);
+
+  // Fetch fake report count
+  const fetchFakeReportCount = async (email) => {
+    try {
+      const response = await fetch(getApiUrl(`/api/users/email/${encodeURIComponent(email)}/fake-reports`));
+      if (response.ok) {
+        const data = await response.json();
+        setFakeReportCount(data.fake_report_count || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching fake report count:', error);
+      setFakeReportCount(0);
+    }
+  };
 
   const loadUserData = async () => {
     setLoading(true);
@@ -95,6 +110,10 @@ const UserProfileScreen = ({ navigation }) => {
         // Optionally, save migrated user if there was a change
         if (userData.department !== migratedUser.department) {
           await saveUser(migratedUser);
+        }
+        // Fetch fake report count
+        if (migratedUser.email) {
+          fetchFakeReportCount(migratedUser.email);
         }
       } else {
         // Default user if none exists
@@ -774,6 +793,22 @@ const UserProfileScreen = ({ navigation }) => {
             </View>
             
             <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Fake Reports</Text>
+              <View style={styles.valueContainer}>
+                <Ionicons name="flag-outline" size={18} color={fakeReportCount > 0 ? "#dc3545" : "#007bff"} style={styles.valueIcon} />
+                <Text style={[styles.fieldValue, fakeReportCount > 0 && styles.warningText]}>
+                  {fakeReportCount}
+                  {fakeReportCount > 0 && ' warning(s)'}
+                </Text>
+              </View>
+              {fakeReportCount > 0 && (
+                <Text style={styles.warningSubtext}>
+                  Your items have been reported as fake. Please ensure all reports are accurate.
+                </Text>
+              )}
+            </View>
+            
+            <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Two-Factor Authentication</Text>
               <View style={styles.toggleContainer}>
                 <View style={styles.toggleInfo}>
@@ -1067,6 +1102,17 @@ const createStyles = (insets) => StyleSheet.create({
     fontSize: 16,
     color: '#2c3e50',
     flex: 1,
+  },
+  warningText: {
+    color: '#dc3545',
+    fontWeight: '600',
+  },
+  warningSubtext: {
+    fontSize: 12,
+    color: '#dc3545',
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginLeft: 30,
   },
   inputWrapper: {
     flexDirection: 'row',
