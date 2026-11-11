@@ -11,7 +11,7 @@ export default function WelcomeModal({ visible, onClose }) {
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           <Image
-            source={require('../../../assets/tools.jpg')} // Place your image in src/assets/tools.jpg
+            source={require('../../../../assets/tools.jpg')}
             style={styles.headerImage}
             resizeMode="cover"
           />

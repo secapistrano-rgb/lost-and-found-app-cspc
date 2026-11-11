@@ -1,3 +1,4 @@
+require('./env');
 const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
@@ -87,10 +88,10 @@ const fileUpload = multer({
 
 // Create a connection pool to the database
 const db = mysql.createPool({
-    host: '127.0.0.1', 
-    user: 'root',     
-    password: 'Lostfound@2004',      
-    database: 'lost_and_found',
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     connectionLimit: 5,
     connectTimeout: 10000,
     queueTimeout: 5000,

@@ -5,9 +5,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeNotifications } from './src/shared/services/notificationService';
-import { NotificationProvider } from './src/shared/context/NotificationContext';
+import { NotificationProvider } from './src/contexts/NotificationContext';
 import { SuspensionProvider } from './src/contexts/SuspensionContext';
-import { InternetConnectionProvider } from './src/context/InternetConnectionContext';
+import { InternetConnectionProvider } from './src/contexts/InternetConnectionContext';
 import { getUserByEmail, updateUserStatus } from './src/config/apiConfig';
 
 import AppNavigator from './src/navigation/AppNavigator';

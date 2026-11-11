@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // Matches API has been removed
-import { useNotifications } from '../../../shared/context/NotificationContext';
+import { useNotifications } from '../../../contexts/NotificationContext';
 import { deleteNotification } from '../../../shared/services/notificationService';
 import ProfessionalAlert from '../../../components/common/modals/ProfessionalAlert';
 import useProfessionalAlert from '../../../shared/hooks/useProfessionalAlert';

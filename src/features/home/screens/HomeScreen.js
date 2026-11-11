@@ -30,7 +30,7 @@ import { runMatchingProcess } from '../../matching/services/matchingService';
 import { getUser } from '../../../shared/storage/storage';
 import { withInternetGuard } from '../../../shared/hoc/withInternetGuard';
 import { getMatchesByUser } from '../../../config/apiConfig';
-import { useNotifications } from '../../../shared/context/NotificationContext';
+import { useNotifications } from '../../../contexts/NotificationContext';
 import WelcomeModal from '../../../components/common/modals/WelcomeModal';
 
 

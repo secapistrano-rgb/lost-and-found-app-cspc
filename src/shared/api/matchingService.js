@@ -1,3 +1,4 @@
+require('./env');
 const mysql = require('mysql2');
 const fs = require('fs');
 const path = require('path');
@@ -7,10 +8,10 @@ const { compareItemsWithGeminiAI } = require('./geminiMatcher');
 
 // Database connection (reuse the same config as server.js)
 const db = mysql.createConnection({
-  host: '127.0.0.1',
-  user: 'root',
-  password: 'Lostfound@2004',
-  database: 'lost_and_found'
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
 });
 
 /**

@@ -1,7 +1,8 @@
+require('./env');
 // Gemini AI Matching Service for Node.js Backend
 const fetch = require('node-fetch');
 
-const GEMINI_API_KEY = 'AIzaSyB2oSL32Krup7YUX_R4dVTe1PCB8BG-Or4';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_ID = 'gemini-2.5-flash-lite';
 const API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 

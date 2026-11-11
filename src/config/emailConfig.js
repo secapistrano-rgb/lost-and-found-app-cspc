@@ -10,9 +10,9 @@
 
 export const EMAIL_CONFIG = {
   // EmailJS Service Configuration
-  SERVICE_ID: 'service_pk84f35', // Replace with your EmailJS service ID
-  TEMPLATE_ID: 'template_b63wp7r', // Replace with your EmailJS template ID
-  PUBLIC_KEY: 'hIU5t1T-jtwFafA_p', // Replace with your EmailJS public key
+  SERVICE_ID: process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID, // Replace with your EmailJS service ID
+  TEMPLATE_ID: process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID, // Replace with your EmailJS template ID
+  PUBLIC_KEY: process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY, // Replace with your EmailJS public key
   
   // Email Template Variables (these should match your EmailJS template)
   TEMPLATE_VARS: {
